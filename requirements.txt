@@ -1,0 +1,11 @@
+reportlab 
+faker
+langchain 
+langchain-community 
+langchain-openai    
+langchain-text-splitters 
+faiss-cpu 
+pypdf       
+pandas 
+pydantic 
+python-dotenv
