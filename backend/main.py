@@ -1,13 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from config import settings
+from backend.config import settings
 
-from routes.upload import router as upload_router
-from routes.analysis import router as analysis_router
-from routes.search import router as search_router
-from routes.analytics import router as analytics_router
-from routes.chat import router as chat_router
+from backend.routes.upload import router as upload_router
+from backend.routes.analysis import router as analysis_router
+from backend.routes.search import router as search_router
+from backend.routes.analytics import router as analytics_router
+from backend.routes.chat import router as chat_router
 
 
 app = FastAPI(
@@ -34,6 +34,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # --------------------------------------------------
 # Routers

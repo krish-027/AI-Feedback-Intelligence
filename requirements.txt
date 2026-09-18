@@ -2,7 +2,7 @@
 # -------------------------
 # API / Backend
 # -------------------------
-fastapi
+fastapi[standard]
 uvicorn
 python-multipart
 
