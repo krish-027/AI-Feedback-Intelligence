@@ -1,11 +1,60 @@
-reportlab 
-faker
-langchain 
-langchain-community 
-langchain-openai    
-langchain-text-splitters 
-faiss-cpu 
-pypdf       
-pandas 
-pydantic 
+
+# -------------------------
+# API / Backend
+# -------------------------
+fastapi
+uvicorn
+python-multipart
+
+# -------------------------
+# Configuration
+# -------------------------
 python-dotenv
+pydantic
+pydantic-settings
+
+# -------------------------
+# PDF Processing
+# -------------------------
+pymupdf
+
+# -------------------------
+# LLM / LangChain
+# -------------------------
+langchain
+langchain-community
+langchain-google-genai
+langchain-text-splitters
+langchain-huggingface
+langchain-google-genai==4.4.0
+# -------------------------
+# Embeddings / Vector Search
+# -------------------------
+sentence-transformers
+faiss-cpu
+numpy
+
+# -------------------------
+# Database
+# -------------------------
+sqlalchemy
+psycopg2-binary
+
+# -------------------------
+# Data / Evaluation
+# -------------------------
+pandas
+scikit-learn
+
+# -------------------------
+# Data Generation
+# -------------------------
+faker
+reportlab
+
+# -------------------------
+# Testing & Evaluation
+# -------------------------
+pytest
+httpx
+ragas
