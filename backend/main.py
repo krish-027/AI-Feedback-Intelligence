@@ -8,6 +8,7 @@ from backend.routes.analysis import router as analysis_router
 from backend.routes.search import router as search_router
 from backend.routes.analytics import router as analytics_router
 from backend.routes.chat import router as chat_router
+from backend.routes.evaluation import router as evaluation_router
 
 
 app = FastAPI(
@@ -45,6 +46,7 @@ app.include_router(analysis_router)
 app.include_router(search_router)
 app.include_router(analytics_router)
 app.include_router(chat_router)
+app.include_router(evaluation_router)
 
 
 # --------------------------------------------------

@@ -77,8 +77,8 @@ def test_embedding_document_preserves_category() -> None:
     assert metadata["split"] == "reference"
 
 
-def test_manifest_contains_reference_and_evaluation() -> None:
-    """The dataset manifest should contain both reference and evaluation records."""
+def test_manifest_contains_expected_splits() -> None:
+    """The dataset manifest should contain the 60/20/20 dataset split."""
 
     service = FAISSVectorStoreService()
 
@@ -93,7 +93,8 @@ def test_manifest_contains_reference_and_evaluation() -> None:
 
     assert splits == {
         "reference",
-        "evaluation",
+        "development",
+        "final_benchmark",
     }
 
     reference_count = sum(
@@ -102,18 +103,25 @@ def test_manifest_contains_reference_and_evaluation() -> None:
         if record["split"] == "reference"
     )
 
-    evaluation_count = sum(
+    development_count = sum(
         1
         for record in records
-        if record["split"] == "evaluation"
+        if record["split"] == "development"
     )
 
-    assert reference_count == 80
-    assert evaluation_count == 20
+    final_benchmark_count = sum(
+        1
+        for record in records
+        if record["split"] == "final_benchmark"
+    )
+
+    assert reference_count == 60
+    assert development_count == 20
+    assert final_benchmark_count == 20
 
 
 def test_build_faiss_vector_store(tmp_path: Path) -> None:
-    """Build a real FAISS index from the 80 reference documents."""
+    """Build a real FAISS index from the 60 reference documents."""
 
     test_vector_store_path = (
         tmp_path / "test_customer_feedback"

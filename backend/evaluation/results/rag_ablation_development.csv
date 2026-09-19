@@ -1,0 +1,3 @@
+feedback_id,relative_path,gold_category,rag_prediction,rag_correct,rag_confidence,no_rag_prediction,no_rag_correct,no_rag_confidence,no_rag_explanation,no_rag_status,no_rag_error,rag_better,no_rag_better,same_correctness
+FB001,development_001.pdf,Good,Good,True,0.9,Need Improvements,False,0.8,Baseline prediction.,success,,True,False,False
+FB002,development_002.pdf,Poor,Need Improvements,False,0.9,Poor,True,0.91,Baseline prediction.,success,,False,True,False

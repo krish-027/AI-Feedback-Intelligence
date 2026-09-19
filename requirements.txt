@@ -22,17 +22,23 @@ pymupdf
 # LLM / LangChain
 # -------------------------
 langchain
+langchain-core
 langchain-community
-langchain-google-genai
+langchain-google-genai==4.4.0
 langchain-text-splitters
 langchain-huggingface
-langchain-google-genai==4.4.0
+
 # -------------------------
 # Embeddings / Vector Search
 # -------------------------
 sentence-transformers
 faiss-cpu
 numpy
+
+# -------------------------
+# Google / Gemini
+# -------------------------
+google-genai
 
 # -------------------------
 # Database
@@ -44,7 +50,6 @@ psycopg2-binary
 # Data / Evaluation
 # -------------------------
 pandas
-scikit-learn
 
 # -------------------------
 # Data Generation

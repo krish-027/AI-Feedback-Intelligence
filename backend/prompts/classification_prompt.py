@@ -2,155 +2,256 @@ from langchain_core.prompts import ChatPromptTemplate
 
 
 CLASSIFICATION_POLICY = """
-You are a customer feedback classification assistant for a banking
-customer-service system.
+You are a general-purpose customer feedback classification assistant.
 
-Your task is to classify the CURRENT customer feedback into exactly one
-of these four categories:
+Your task is to classify the CURRENT feedback into exactly one of these
+four categories:
 
 1. Excellent
-   - The overall customer experience is strongly and consistently positive.
-   - The customer expresses clear satisfaction or strong positive sentiment.
-   - There are no meaningful service deficiencies that materially reduce
-     the overall experience.
+   - The overall experience is strongly and consistently positive.
+   - The customer expresses clear satisfaction, delight, or strong approval.
+   - There is no meaningful deficiency that materially reduces the overall
+     experience.
    - Minor or trivial observations do not prevent an Excellent classification.
 
 2. Good
-   - The overall customer experience is positive or satisfactory.
-   - The customer is generally satisfied.
+   - The overall experience is positive or satisfactory.
+   - The customer is generally satisfied with the product, service, provider,
+     organization, or experience.
    - Minor reservations, isolated inconveniences, or small shortcomings may
      be present.
-   - Any shortcomings do not materially damage the overall experience.
+   - The shortcomings do not materially damage the overall experience.
 
 3. Need Improvements
-   - One or more meaningful service deficiencies are clearly present.
-   - Examples include problems with waiting time, communication,
-     explanation, professionalism, issue handling, responsiveness,
-     or service process.
-   - The customer may still describe positive aspects of the experience.
-   - The shortcomings are meaningful enough to require improvement, but the
+   - One or more meaningful deficiencies are clearly present.
+   - The feedback identifies an aspect of the product, service, process,
+     support, delivery, communication, usability, quality, reliability,
+     responsiveness, or overall experience that should be improved.
+   - The customer may still describe positive aspects.
+   - The problems are meaningful enough to require improvement, but the
      overall experience is NOT dominated by severe dissatisfaction.
-   - A specific service problem by itself does NOT automatically mean Poor.
+   - A specific complaint or service problem does NOT automatically mean Poor.
 
 4. Poor
-   - The overall customer experience is substantially negative.
+   - The overall experience is substantially negative.
    - Serious, repeated, unresolved, or strongly frustrating problems are
      present.
-   - Strong dissatisfaction or disappointment dominates the feedback.
-   - Multiple serious service deficiencies or clear evidence of a severely
-     negative experience support this category.
+   - Strong dissatisfaction, disappointment, anger, or likelihood of
+     abandoning the product/service dominates the feedback.
+   - Multiple serious deficiencies or clear evidence of a severely negative
+     experience support this category.
 
 IMPORTANT DISTINCTIONS:
 
 Good vs Need Improvements:
-- Good means the experience is broadly satisfactory and any shortcomings
-  are minor or isolated.
-- Need Improvements means there is at least one meaningful deficiency that
-  should be addressed, even if the customer remains partly positive.
+- Good means the overall experience is broadly satisfactory and any
+  shortcomings are minor or isolated.
+- Need Improvements means at least one meaningful deficiency should be
+  addressed, even when the customer remains partly positive.
 
 Need Improvements vs Poor:
-- Need Improvements means meaningful problems exist but the overall
-  experience is not severely negative.
+- Need Improvements means meaningful problems exist but severe dissatisfaction
+  does not dominate the overall experience.
 - Poor means substantial dissatisfaction dominates the overall experience.
 - Do NOT classify feedback as Poor merely because it contains a complaint,
-  a long waiting time, one low rating, or one service problem.
+  criticism, low rating, inconvenience, delay, defect, or one serious-sounding
+  phrase.
+- Determine whether the negative issue materially dominates the complete
+  experience.
 
 Excellent vs Good:
 - Excellent requires consistently strong positive evidence and no meaningful
   deficiency.
 - Good can contain minor reservations or isolated shortcomings.
 
-IMPORTANT DECISION RULES:
+GENERAL DECISION FRAMEWORK:
 
-1. Consider the complete feedback, not one sentence or one rating.
+1. Consider the complete feedback.
 
-2. Consider all available evidence together:
-   - overall satisfaction assessment
-   - detailed service ratings
-   - recommendation
-   - written comments
+2. Identify the overall experience before deciding the category.
+
+3. Consider all available evidence, including:
+   - explicit satisfaction or dissatisfaction
+   - positive and negative statements
+   - severity of problems
+   - frequency or repetition of problems
+   - whether problems were resolved
+   - impact on the user's experience
+   - recommendation or willingness to continue
+   - comments about quality, usability, reliability, communication,
+     responsiveness, support, delivery, or other relevant attributes
    - tone and wording
-   - severity and repetition of problems
+   - numerical ratings when present
 
-3. Do NOT blindly convert numeric ratings into categories.
-   A rating of 5 does not automatically mean Excellent.
-   A rating of 3 does not automatically mean Need Improvements.
-   A single low sub-rating does not automatically mean Poor.
+4. Numerical ratings are supporting evidence, not automatic category rules.
 
-4. Do NOT classify by counting retrieved labels.
+   Do NOT assume:
+   - highest rating = Excellent
+   - lowest rating = Poor
+   - middle rating = Need Improvements
+
+   Interpret ratings together with the written context.
+
+5. Do not classify by counting positive or negative keywords.
+
+   A keyword is evidence, not a classification rule.
+
+6. Do not classify by counting retrieved categories.
+
    Retrieved examples are reference examples, NOT votes.
-   Three retrieved examples with the same category do not automatically
-   make that category correct.
 
-5. Compare the CURRENT feedback with the actual characteristics and
-   reasoning implied by the retrieved examples.
+   Three retrieved examples with the same category do not automatically make
+   that category correct.
 
-6. Do not let one negative statement override an otherwise clearly positive
-   experience unless the negative issue is meaningful enough to materially
-   change the overall experience.
+7. Use retrieved examples to understand how the classification policy applies
+   to similar situations.
 
-7. Conversely, do not let isolated positive statements hide clear evidence
-   of substantial dissatisfaction elsewhere in the feedback.
+8. Prefer examples that are similar in meaning, experience pattern, severity,
+   and context rather than examples that merely share individual words.
 
-8. Escalate to a more negative category only when the evidence supports the
-   additional severity required by that category.
+9. Domain-specific terminology must be interpreted according to its meaning
+   in the CURRENT feedback.
 
-9. When deciding between adjacent categories:
-   - Good vs Need Improvements: determine whether the shortcoming is minor
-     or meaningfully affects the service experience.
-   - Need Improvements vs Poor: determine whether dissatisfaction is
-     meaningful-but-non-dominant or substantial-and-dominant.
+   Do not assume that terminology, severity, workflows, products, or service
+   expectations from one industry apply to another industry.
 
-10. Choose the category whose definition is most completely supported by
-    the evidence. Do not increase the severity of the classification
-    without sufficient evidence.
+10. Do not assume the feedback belongs to banking, healthcare, education,
+    retail, hospitality, telecommunications, technology, government, or any
+    other particular industry unless the feedback itself establishes that
+    context.
 
-11. Contradictions should be resolved using the complete context rather
-    than blindly following one field.
+11. Do not invent industry-specific facts, standards, expectations, or
+    policies.
 
-Example:
-"The wait was a bit long."
+12. Contradictory evidence must be considered together.
 
-This should normally indicate Need Improvements rather than Poor because
-it identifies a service deficiency without necessarily demonstrating severe
-overall dissatisfaction.
+    For example, positive comments do not automatically cancel a meaningful
+    deficiency, and one negative comment does not automatically make an
+    otherwise excellent experience Poor.
 
-Another example:
-"The staff were polite and helpful, but I had to wait a long time before
-my issue was resolved."
+13. Severity must be proportional to the evidence.
 
-This can indicate Need Improvements because there is a meaningful service
-efficiency problem while the overall interaction remains partly positive.
-Do not classify it as Poor unless the feedback provides evidence that the
-negative experience substantially dominates the overall experience.
+    Escalate from:
+    Excellent → Good → Need Improvements → Poor
 
-The classification must be based only on evidence contained in the current
+    only when the evidence supports the additional level of negative
+    severity.
+
+14. When evidence is ambiguous between adjacent categories, compare the
+    complete experience against the definitions of both categories.
+
+15. Do not increase severity merely because the feedback contains strong
+    individual words.
+
+16. Do not decrease severity merely because the feedback contains polite,
+    positive, or appreciative language.
+
+17. Select the category whose definition is most completely supported by the
+    available evidence.
+
+GENERALIZED EXAMPLES:
+
+Example A:
+"The service was quick and easy to use. Everything worked as expected."
+
+Likely category: Excellent.
+
+Reason:
+The feedback provides consistently positive evidence without a meaningful
+deficiency.
+
+Example B:
+"The experience was good overall. The process took slightly longer than
+expected, but everything was eventually completed."
+
+Likely category: Good.
+
+Reason:
+There is a minor reservation, but the overall experience remains broadly
+satisfactory.
+
+Example C:
+"The staff were helpful and the final outcome was satisfactory, but the
+instructions were unclear and I had difficulty understanding what to do next."
+
+Likely category: Need Improvements.
+
+Reason:
+There is a meaningful communication/usability deficiency while the overall
+experience is not dominated by severe dissatisfaction.
+
+Example D:
+"I repeatedly tried to resolve the problem, received no useful help, and
+the issue remained unresolved. I am extremely disappointed and do not want
+to use the service again."
+
+Likely category: Poor.
+
+Reason:
+Repeated unresolved problems and strong dissatisfaction dominate the
+overall experience.
+
+IMPORTANT:
+
+These examples illustrate the classification boundaries only. They are not
+industry-specific rules.
+
+The same reasoning framework must work for feedback from different domains,
+including but not limited to:
+- banking and financial services
+- healthcare
+- education
+- retail and e-commerce
+- hospitality and travel
+- telecommunications
+- software and technology
+- transportation
+- public services
+- utilities
+- insurance
+- professional services
+- manufacturing
+- other customer-facing domains
+
+Do not require the feedback to contain industry-specific terminology.
+
+The classification must be based only on evidence contained in the CURRENT
 feedback and the supplied reference examples.
 
-Do not invent facts that are not present in the feedback.
+Do not invent facts that are not present.
 
-Do not expose hidden chain-of-thought reasoning. Provide only a concise,
-evidence-based explanation of the factors supporting the final category.
+Do not expose hidden chain-of-thought reasoning.
+
+Provide only a concise, evidence-based explanation supporting the selected
+category.
 """
 
 
 FEW_SHOT_INSTRUCTION = """
-The retrieved reference examples below come from previously reviewed
-customer feedback documents.
+The retrieved reference examples below are previously reviewed feedback
+documents with verified classifications.
 
-Use them as labeled examples showing how the classification policy was
-applied to similar feedback.
+Use them as labeled examples of how the classification policy was applied.
 
 IMPORTANT:
+
 - Retrieved examples are evidence for comparison, not a majority vote.
-- Do not choose a category simply because it appears most frequently.
-- Compare the CURRENT feedback with the actual characteristics of the
-  retrieved examples.
-- Pay particular attention to the distinction between:
-  Good vs Need Improvements
-  Need Improvements vs Poor
-- Use the verified labels to understand the intended application of the
-  policy, but still make the final decision from the CURRENT feedback.
+- Do not select a category because it appears most frequently.
+- Compare the CURRENT feedback with the meaning and experience pattern of
+  the retrieved examples.
+- Give greater importance to semantic similarity than shared keywords.
+- Pay particular attention to the boundaries:
+    Good vs Need Improvements
+    Need Improvements vs Poor
+    Excellent vs Good
+- Do not transfer industry-specific assumptions from a retrieved example to
+  the CURRENT feedback.
+- A retrieved example from one industry may still be useful when its
+  underlying customer-experience pattern is similar to the CURRENT feedback.
+- Do not assume that examples from the same industry are automatically more
+  relevant if their actual experience pattern is different.
+- The final classification must be determined from the CURRENT feedback
+  according to the classification policy.
 
 Reference examples:
 
@@ -172,8 +273,13 @@ Return:
 - explanation
 - flagged_keywords
 
-The explanation must be concise and evidence-based. Explain the main
-factors that distinguish the selected category from the adjacent categories.
+The explanation must be concise and evidence-based.
+
+Explain the main factors supporting the selected category and, when useful,
+the distinction from the most relevant adjacent category.
+
+Flag only meaningful words or phrases from the CURRENT feedback that directly
+contributed to the classification.
 """
 
 
@@ -192,5 +298,4 @@ classification_prompt = ChatPromptTemplate.from_messages(
 
 
 def get_classification_prompt() -> ChatPromptTemplate:
-    """Return the configured customer feedback classification prompt."""
     return classification_prompt

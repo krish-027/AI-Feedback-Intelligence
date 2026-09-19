@@ -4,57 +4,41 @@ import csv
 import hashlib
 import re
 from pathlib import Path
-from typing import Any
 
 from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from sentence_transformers import SentenceTransformer
 
-from backend.services.chunking_service import get_chunking_service
-from backend.services.document_service import get_document_service
+from backend.services.chunking_service import (
+    get_chunking_service,
+)
+from backend.services.document_service import (
+    get_document_service,
+)
 
 
 class SentenceTransformerEmbeddings(Embeddings):
-    """
-    Small LangChain adapter around SentenceTransformer.
 
-    This allows the existing Stage 3 embedding model to be used by
-    LangChain's FAISS vector store.
-    """
-
-    DEFAULT_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+    DEFAULT_MODEL_NAME = (
+        "sentence-transformers/all-MiniLM-L6-v2"
+    )
 
     def __init__(
         self,
         model_name: str = DEFAULT_MODEL_NAME,
     ) -> None:
-        """
-        Load the Sentence Transformer embedding model.
-        """
 
         self.model_name = model_name
 
-        print(
-            f"Loading embedding model: {self.model_name}"
-        )
-
         self.model = SentenceTransformer(
             self.model_name
-        )
-
-        dimension = self.model.get_embedding_dimension()
-
-        print(
-            f"Embedding model loaded successfully "
-            f"(dimension={dimension})"
         )
 
     def embed_documents(
         self,
         texts: list[str],
     ) -> list[list[float]]:
-        """Generate embeddings for multiple documents."""
 
         if not texts:
             return []
@@ -71,7 +55,6 @@ class SentenceTransformerEmbeddings(Embeddings):
         self,
         text: str,
     ) -> list[float]:
-        """Generate an embedding for a single query."""
 
         embedding = self.model.encode(
             text,
@@ -82,21 +65,21 @@ class SentenceTransformerEmbeddings(Embeddings):
         return embedding.tolist()
 
     def get_dimension(self) -> int:
-        """Return the dimensionality of the embedding vectors."""
 
-        dimension = self.model.get_embedding_dimension()
+        dimension = (
+            self.model.get_embedding_dimension()
+        )
+
         if dimension is None:
             raise RuntimeError(
-                "The embedding model did not report an embedding dimension."
+                "Embedding model did not report "
+                "an embedding dimension."
             )
 
         return dimension
 
 
 class FAISSVectorStoreService:
-    """
-    Build, persist, load, and inspect the customer-feedback FAISS index.
-    """
 
     DEFAULT_MANIFEST_PATH = Path(
         "Sample_Data/evaluation/dataset_manifest.csv"
@@ -106,8 +89,18 @@ class FAISSVectorStoreService:
         "backend/vector_store/customer_feedback"
     )
 
-    EXPECTED_REFERENCE_SPLIT = "reference"
-    EXPECTED_EVALUATION_SPLIT = "evaluation"
+    REFERENCE_SPLIT = "reference"
+
+    NON_REFERENCE_SPLITS = {
+        "development",
+        "final_benchmark",
+    }
+
+    VALID_SPLITS = {
+        "reference",
+        "development",
+        "final_benchmark",
+    }
 
     PII_PATTERNS = (
         re.compile(
@@ -132,9 +125,6 @@ class FAISSVectorStoreService:
             SentenceTransformerEmbeddings.DEFAULT_MODEL_NAME
         ),
     ) -> None:
-        """
-        Initialize the FAISS vector-store service.
-        """
 
         self.manifest_path = Path(
             manifest_path
@@ -148,103 +138,244 @@ class FAISSVectorStoreService:
             else self.DEFAULT_VECTOR_STORE_PATH
         )
 
-        self.embedding_service = SentenceTransformerEmbeddings(
-            model_name=embedding_model_name
+        self.embedding_service = (
+            SentenceTransformerEmbeddings(
+                model_name=embedding_model_name
+            )
         )
 
-        self.document_service = get_document_service()
-        self.chunking_service = get_chunking_service()
+        self.document_service = (
+            get_document_service()
+        )
+
+        self.chunking_service = (
+            get_chunking_service()
+        )
 
         self.vector_store: FAISS | None = None
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
+    # ---------------------------------------------------------
+    # Manifest
+    # ---------------------------------------------------------
+
+    def _load_manifest(
+        self,
+    ) -> list[dict[str, str]]:
+
+        if not self.manifest_path.exists():
+            raise FileNotFoundError(
+                "Dataset manifest not found: "
+                f"{self.manifest_path}"
+            )
+
+        with self.manifest_path.open(
+            "r",
+            encoding="utf-8-sig",
+            newline="",
+        ) as file:
+
+            reader = csv.DictReader(
+                file
+            )
+
+            if reader.fieldnames is None:
+                raise ValueError(
+                    "dataset_manifest.csv "
+                    "has no header."
+                )
+
+            required_columns = {
+                "feedback_id",
+                "filename",
+                "relative_path",
+                "category",
+                "split",
+            }
+
+            missing_columns = (
+                required_columns
+                - set(reader.fieldnames)
+            )
+
+            if missing_columns:
+                raise ValueError(
+                    "dataset_manifest.csv is missing "
+                    f"required columns: "
+                    f"{sorted(missing_columns)}"
+                )
+
+            rows = list(reader)
+
+        if not rows:
+            raise ValueError(
+                "dataset_manifest.csv contains "
+                "no records."
+            )
+
+        for row in rows:
+
+            split = row["split"].strip()
+
+            if split not in self.VALID_SPLITS:
+                raise ValueError(
+                    f"Invalid dataset split "
+                    f"'{split}' for "
+                    f"{row['filename']}."
+                )
+
+        return rows
+
+    def get_records_by_split(
+        self,
+        split: str,
+    ) -> list[dict[str, str]]:
+
+        if split not in self.VALID_SPLITS:
+            raise ValueError(
+                f"Invalid split '{split}'. "
+                f"Expected one of "
+                f"{sorted(self.VALID_SPLITS)}"
+            )
+
+        return [
+            row
+            for row in self._load_manifest()
+            if row["split"].strip()
+            == split
+        ]
+
+    # ---------------------------------------------------------
+    # Build
+    # ---------------------------------------------------------
 
     def build(self) -> FAISS:
-        """
-        Build the FAISS index from reference documents only.
 
-        Evaluation documents are explicitly excluded.
-        """
+        print(
+            "\n=== Building FAISS Vector Store ==="
+        )
 
-        print("\n=== Stage 6: Building FAISS Vector Store ===")
-
-        manifest_rows = self._load_manifest()
+        manifest_rows = (
+            self._load_manifest()
+        )
 
         reference_rows = [
             row
             for row in manifest_rows
-            if row["split"].strip().lower()
-            == self.EXPECTED_REFERENCE_SPLIT
+            if row["split"].strip()
+            == self.REFERENCE_SPLIT
         ]
 
-        evaluation_rows = [
+        development_rows = [
             row
             for row in manifest_rows
-            if row["split"].strip().lower()
-            == self.EXPECTED_EVALUATION_SPLIT
+            if row["split"].strip()
+            == "development"
         ]
 
-        if not reference_rows:
+        benchmark_rows = [
+            row
+            for row in manifest_rows
+            if row["split"].strip()
+            == "final_benchmark"
+        ]
+
+        if len(reference_rows) != 60:
             raise ValueError(
-                "No reference documents were found in "
-                "dataset_manifest.csv."
+                "The reference split must contain "
+                f"exactly 60 records. Found "
+                f"{len(reference_rows)}."
             )
 
-        print(
-            f"Manifest records: {len(manifest_rows)}"
-        )
+        if len(development_rows) != 20:
+            raise ValueError(
+                "The development split must contain "
+                f"exactly 20 records. Found "
+                f"{len(development_rows)}."
+            )
 
-        print(
-            f"Reference records: {len(reference_rows)}"
-        )
+        if len(benchmark_rows) != 20:
+            raise ValueError(
+                "The final_benchmark split must contain "
+                f"exactly 20 records. Found "
+                f"{len(benchmark_rows)}."
+            )
 
-        print(
-            f"Evaluation records: {len(evaluation_rows)}"
-        )
-
-        if len(manifest_rows) != (
-            len(reference_rows) + len(evaluation_rows)
+        if (
+            len(reference_rows)
+            + len(development_rows)
+            + len(benchmark_rows)
+            != 100
         ):
             raise ValueError(
-                "Manifest contains records with an unknown split."
+                "Dataset split counts do not sum "
+                "to 100."
             )
 
-        documents = self._load_reference_documents(
-            reference_rows
+        print(
+            f"Reference records      : "
+            f"{len(reference_rows)}"
         )
 
         print(
-            f"Reference source documents loaded: "
+            f"Development records    : "
+            f"{len(development_rows)}"
+        )
+
+        print(
+            f"Final benchmark records: "
+            f"{len(benchmark_rows)}"
+        )
+
+        documents = (
+            self._load_reference_documents(
+                reference_rows
+            )
+        )
+
+        if not documents:
+            raise ValueError(
+                "No reference documents were loaded."
+            )
+
+        print(
+            f"Reference source documents: "
             f"{len(documents)}"
         )
 
-        chunks = self.chunking_service.chunk_documents(
-            documents
-        )
-
-        print(
-            f"Reference chunks generated: {len(chunks)}"
+        chunks = (
+            self.chunking_service.chunk_documents(
+                documents
+            )
         )
 
         if not chunks:
             raise ValueError(
-                "No chunks were generated from the "
+                "No chunks were generated from "
                 "reference documents."
             )
 
-        embedding_documents = self._prepare_embedding_documents(
-            chunks
-        )
-
         print(
-            "Generating embeddings and building FAISS index..."
+            f"Reference chunks: "
+            f"{len(chunks)}"
         )
 
-        self.vector_store = FAISS.from_documents(
-            documents=embedding_documents,
-            embedding=self.embedding_service,
+        embedding_documents = (
+            self._prepare_embedding_documents(
+                chunks
+            )
+        )
+
+        if not embedding_documents:
+            raise ValueError(
+                "No documents remained after "
+                "embedding preparation."
+            )
+
+        self.vector_store = (
+            FAISS.from_documents(
+                documents=embedding_documents,
+                embedding=self.embedding_service,
+            )
         )
 
         self._save_vector_store()
@@ -254,7 +385,8 @@ class FAISSVectorStoreService:
         )
 
         print(
-            f"Vectors indexed: {len(embedding_documents)}"
+            f"Indexed chunks: "
+            f"{len(embedding_documents)}"
         )
 
         print(
@@ -263,286 +395,151 @@ class FAISSVectorStoreService:
         )
 
         print(
-            f"Saved to: {self.vector_store_path}"
+            f"Saved to: "
+            f"{self.vector_store_path}"
         )
 
         return self.vector_store
 
-    def load(self) -> FAISS:
-        """
-        Load an existing FAISS index from disk.
-        """
-
-        index_file = (
-            self.vector_store_path / "index.faiss"
-        )
-
-        metadata_file = (
-            self.vector_store_path / "index.pkl"
-        )
-
-        if not index_file.exists():
-            raise FileNotFoundError(
-                f"FAISS index not found: {index_file}"
-            )
-
-        if not metadata_file.exists():
-            raise FileNotFoundError(
-                f"FAISS metadata file not found: "
-                f"{metadata_file}"
-            )
-
-        self.vector_store = FAISS.load_local(
-            folder_path=str(
-                self.vector_store_path
-            ),
-            embeddings=self.embedding_service,
-            allow_dangerous_deserialization=True,
-        )
-
-        return self.vector_store
-
-    def similarity_search(
-        self,
-        query: str,
-        k: int = 4,
-    ) -> list[Document]:
-        """
-        Retrieve the k most similar reference chunks.
-        """
-
-        if not query or not query.strip():
-            raise ValueError(
-                "query must contain non-empty text."
-            )
-
-        if k <= 0:
-            raise ValueError(
-                "k must be greater than zero."
-            )
-
-        if self.vector_store is None:
-            self.load()
-
-        assert self.vector_store is not None
-
-        return self.vector_store.similarity_search(
-            query,
-            k=k,
-        )
-
-    def similarity_search_with_score(
-        self,
-        query: str,
-        k: int = 4,
-    ) -> list[tuple[Document, float]]:
-        """
-        Retrieve similar reference chunks together with FAISS scores.
-        """
-
-        if not query or not query.strip():
-            raise ValueError(
-                "query must contain non-empty text."
-            )
-
-        if k <= 0:
-            raise ValueError(
-                "k must be greater than zero."
-            )
-
-        if self.vector_store is None:
-            self.load()
-
-        assert self.vector_store is not None
-
-        return self.vector_store.similarity_search_with_score(
-            query,
-            k=k,
-        )
-
-    # ------------------------------------------------------------------
-    # Manifest
-    # ------------------------------------------------------------------
-
-    def _load_manifest(self) -> list[dict[str, str]]:
-        """
-        Load and validate dataset_manifest.csv.
-        """
-
-        if not self.manifest_path.exists():
-            raise FileNotFoundError(
-                "Dataset manifest not found at: "
-                f"{self.manifest_path}"
-            )
-
-        with self.manifest_path.open(
-            "r",
-            encoding="utf-8-sig",
-            newline="",
-        ) as file:
-            reader = csv.DictReader(file)
-
-            if reader.fieldnames is None:
-                raise ValueError(
-                    "dataset_manifest.csv has no header."
-                )
-
-            required_columns = {
-                "split",
-                "category",
-            }
-
-            missing = (
-                required_columns
-                - set(reader.fieldnames)
-            )
-
-            if missing:
-                raise ValueError(
-                    "dataset_manifest.csv is missing "
-                    f"required columns: {sorted(missing)}"
-                )
-
-            rows = list(reader)
-
-        if not rows:
-            raise ValueError(
-                "dataset_manifest.csv contains no records."
-            )
-
-        return rows
-
-    # ------------------------------------------------------------------
-    # Document loading
-    # ------------------------------------------------------------------
+    # ---------------------------------------------------------
+    # Reference document loading
+    # ---------------------------------------------------------
 
     def _load_reference_documents(
         self,
         reference_rows: list[dict[str, str]],
     ) -> list[Document]:
-        """
-        Load PDFs belonging to the reference split.
 
-        The manifest's relative_path is treated as the authoritative
-        path to the source PDF.
-        """
+        documents = []
 
-        documents: list[Document] = []
+        project_root = (
+            Path(__file__)
+            .resolve()
+            .parents[2]
+        )
 
-        for index, row in enumerate(
-            reference_rows,
-            start=1,
-        ):
-            relative_path = (
-                row.get("relative_path", "")
+        for row in reference_rows:
+
+            relative_path = Path(
+                row["relative_path"]
                 .strip()
             )
 
-            if not relative_path:
-                raise ValueError(
-                    "A reference manifest row has an "
-                    "empty relative_path."
-                )
-
-            pdf_path = Path(relative_path)
+            pdf_path = (
+                project_root
+                / relative_path
+            )
 
             if not pdf_path.exists():
                 raise FileNotFoundError(
-                    f"Reference PDF not found: {pdf_path}"
+                    "Reference PDF not found: "
+                    f"{pdf_path}"
                 )
 
-            category = row["category"].strip()
-
-            feedback_id = (
-                row.get("feedback_id", "")
-                .strip()
+            loaded = (
+                self.document_service.load_pdf(
+                    pdf_path
+                )
             )
 
-            loaded = self.document_service.load_pdf(
-                pdf_path
-            )
+            if not isinstance(
+                loaded,
+                list,
+            ):
+                loaded = [loaded]
 
-            if isinstance(loaded, Document):
-                loaded_documents = [loaded]
-            else:
-                loaded_documents = list(loaded)
+            for document in loaded:
 
-            for document in loaded_documents:
-                metadata = dict(document.metadata)
+                if not isinstance(document, Document):
+                    raise TypeError(
+                        "Document service returned an unsupported "
+                        f"type: {type(document).__name__}"
+                    )
 
-                # Manifest labels are authoritative for Stage 6.
-                metadata["category"] = category
-                metadata["split"] = (
-                    self.EXPECTED_REFERENCE_SPLIT
+                metadata = dict(
+                    document.metadata
                 )
 
-                if feedback_id:
-                    metadata["feedback_id"] = feedback_id
-
-                metadata["manifest_relative_path"] = (
-                    relative_path
+                metadata.update(
+                    {
+                        "feedback_id": (
+                            row["feedback_id"]
+                        ),
+                        "filename": (
+                            row["filename"]
+                        ),
+                        "category": (
+                            row["category"]
+                        ),
+                        "split": (
+                            row["split"]
+                        ),
+                        "manifest_relative_path": (
+                            row["relative_path"]
+                        ),
+                    }
                 )
 
                 documents.append(
                     Document(
-                        page_content=document.page_content,
+                        page_content=(
+                            document.page_content
+                        ),
                         metadata=metadata,
                     )
                 )
 
-            if index % 10 == 0:
-                print(
-                    f"Loaded {index}/"
-                    f"{len(reference_rows)} reference PDFs..."
-                )
-
         return documents
 
-    # ------------------------------------------------------------------
+    # ---------------------------------------------------------
     # Embedding preparation
-    # ------------------------------------------------------------------
+    # ---------------------------------------------------------
 
     def _prepare_embedding_documents(
         self,
         chunks: list[Document],
     ) -> list[Document]:
-        """
-        Prepare chunks before embedding.
 
-        PII is removed from page_content used for embeddings.
-
-        The category and other useful metadata remain available to the
-        vector store so retrieved examples can be shown to the RAG
-        classifier.
-        """
-
-        prepared: list[Document] = []
+        prepared = []
 
         for chunk in chunks:
+
             cleaned_text = (
                 self._remove_pii_for_embedding(
                     chunk.page_content
                 )
+                .strip()
             )
-
-            cleaned_text = cleaned_text.strip()
 
             if not cleaned_text:
                 continue
 
-            metadata = dict(chunk.metadata)
-
-            metadata["embedding_text_hash"] = (
-                hashlib.sha256(
-                    cleaned_text.encode("utf-8")
-                ).hexdigest()[:16]
+            metadata = dict(
+                chunk.metadata
             )
 
-            metadata["embedding_model"] = (
-                self.embedding_service.model_name
-            )
+            if metadata.get("split") != (
+                self.REFERENCE_SPLIT
+            ):
+                raise ValueError(
+                    "Attempted to embed a non-reference "
+                    f"document: "
+                    f"split={metadata.get('split')}"
+                )
 
-            metadata["embedding_dimension"] = (
+            metadata[
+                "embedding_text_hash"
+            ] = hashlib.sha256(
+                cleaned_text.encode("utf-8")
+            ).hexdigest()[:16]
+
+            metadata[
+                "embedding_model"
+            ] = self.embedding_service.model_name
+
+            metadata[
+                "embedding_dimension"
+            ] = (
                 self.embedding_service.get_dimension()
             )
 
@@ -559,12 +556,6 @@ class FAISSVectorStoreService:
         self,
         text: str,
     ) -> str:
-        """
-        Remove known customer PII fields from embedding text.
-
-        This prevents customer-specific identity information from
-        becoming part of the semantic vector representation.
-        """
 
         cleaned = text
 
@@ -576,14 +567,13 @@ class FAISSVectorStoreService:
 
         return cleaned
 
-    # ------------------------------------------------------------------
+    # ---------------------------------------------------------
     # Persistence
-    # ------------------------------------------------------------------
+    # ---------------------------------------------------------
 
-    def _save_vector_store(self) -> None:
-        """
-        Persist the FAISS index and its metadata locally.
-        """
+    def _save_vector_store(
+        self,
+    ) -> None:
 
         if self.vector_store is None:
             raise RuntimeError(
@@ -596,24 +586,171 @@ class FAISSVectorStoreService:
         )
 
         self.vector_store.save_local(
-            str(self.vector_store_path)
+            str(
+                self.vector_store_path
+            )
+        )
+
+    def load(
+        self,
+    ) -> FAISS:
+
+        index_file = (
+            self.vector_store_path
+            / "index.faiss"
+        )
+
+        metadata_file = (
+            self.vector_store_path
+            / "index.pkl"
+        )
+
+        if not index_file.exists():
+            raise FileNotFoundError(
+                f"FAISS index not found: "
+                f"{index_file}"
+            )
+
+        if not metadata_file.exists():
+            raise FileNotFoundError(
+                "FAISS metadata file not found: "
+                f"{metadata_file}"
+            )
+
+        self.vector_store = (
+            FAISS.load_local(
+                folder_path=str(
+                    self.vector_store_path
+                ),
+                embeddings=self.embedding_service,
+                allow_dangerous_deserialization=True,
+            )
+        )
+
+        return self.vector_store
+
+    # ---------------------------------------------------------
+    # Retrieval
+    # ---------------------------------------------------------
+
+    def _get_loaded_store(
+        self,
+    ) -> FAISS:
+
+        if self.vector_store is None:
+            self.load()
+
+        assert self.vector_store is not None
+
+        return self.vector_store
+
+    def similarity_search(
+        self,
+        query: str,
+        k: int = 4,
+    ) -> list[Document]:
+
+        if not query or not query.strip():
+            raise ValueError(
+                "query must contain "
+                "non-empty text."
+            )
+
+        if k <= 0:
+            raise ValueError(
+                "k must be greater than zero."
+            )
+
+        vector_store = (
+            self._get_loaded_store()
+        )
+
+        results = (
+            vector_store.similarity_search(
+                query,
+                k=k,
+            )
+        )
+
+        self._validate_reference_results(
+            results
+        )
+
+        return results
+
+    def similarity_search_with_score(
+        self,
+        query: str,
+        k: int = 4,
+    ) -> list[tuple[Document, float]]:
+
+        if not query or not query.strip():
+            raise ValueError(
+                "query must contain "
+                "non-empty text."
+            )
+
+        if k <= 0:
+            raise ValueError(
+                "k must be greater than zero."
+            )
+
+        vector_store = (
+            self._get_loaded_store()
+        )
+
+        results = (
+            vector_store
+            .similarity_search_with_score(
+                query,
+                k=k,
+            )
+        )
+
+        self._validate_reference_results(
+            [
+                document
+                for document, _ in results
+            ]
+        )
+
+        return results
+
+    @staticmethod
+    def _validate_reference_results(
+        documents: list[Document],
+    ) -> None:
+
+        for document in documents:
+
+            split = document.metadata.get(
+                "split"
+            )
+
+            if split != "reference":
+                raise ValueError(
+                    "Vector store returned a "
+                    "non-reference document: "
+                    f"split={split}"
+                )
+
+    def get_index_document_count(
+        self,
+    ) -> int:
+
+        vector_store = (
+            self._get_loaded_store()
+        )
+
+        return (
+            vector_store.index.ntotal
         )
 
 
-# ----------------------------------------------------------------------
-# Singleton access
-# ----------------------------------------------------------------------
-
-_vector_store_service: (
-    FAISSVectorStoreService | None
-) = None
+_vector_store_service = None
 
 
-def get_vector_store_service() -> FAISSVectorStoreService:
-    """
-    Return the shared FAISSVectorStoreService instance.
-    """
-
+def get_vector_store_service():
     global _vector_store_service
 
     if _vector_store_service is None:

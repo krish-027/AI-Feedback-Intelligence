@@ -17,8 +17,6 @@ from backend.models.classification import (
 
 
 class FakeDocumentService:
-    """Fake document service used by evaluation tests."""
-
     def __init__(
         self,
         documents_by_path: dict[str, list[Document]],
@@ -29,16 +27,12 @@ class FakeDocumentService:
         self,
         pdf_path: Path,
     ) -> list[Document]:
-        """Return predefined documents."""
-
         return self.documents_by_path[
             str(pdf_path)
         ]
 
 
 class FakeRAGService:
-    """Fake RAG service returning predefined classifications."""
-
     def __init__(
         self,
         predictions: dict[str, FeedbackClassification],
@@ -51,8 +45,6 @@ class FakeRAGService:
         feedback: str,
         include_retrieved_examples: bool = True,
     ) -> dict:
-        """Return a deterministic classification based on feedback."""
-
         self.calls.append(
             {
                 "feedback": feedback,
@@ -68,7 +60,7 @@ class FakeRAGService:
             key
         ]
 
-        if key == "Evaluation feedback 1":
+        if key == "Development feedback 1":
             retrieved = [
                 {
                     "feedback_id": "FB-REF001",
@@ -105,20 +97,24 @@ class FakeRAGService:
 def create_manifest(
     path: Path,
 ) -> None:
-    """Create a small evaluation manifest."""
-
     rows = [
         {
-            "relative_path": "evaluation_001.pdf",
-            "split": "evaluation",
+            "relative_path": "development_001.pdf",
+            "split": "development",
             "category": "Need Improvements",
-            "feedback_id": "FB-EVAL001",
+            "feedback_id": "FB-DEV001",
         },
         {
-            "relative_path": "evaluation_002.pdf",
-            "split": "evaluation",
+            "relative_path": "development_002.pdf",
+            "split": "development",
             "category": "Poor",
-            "feedback_id": "FB-EVAL002",
+            "feedback_id": "FB-DEV002",
+        },
+        {
+            "relative_path": "final_001.pdf",
+            "split": "final_benchmark",
+            "category": "Good",
+            "feedback_id": "FB-FINAL001",
         },
         {
             "relative_path": "reference_001.pdf",
@@ -150,8 +146,6 @@ def create_manifest(
 def create_test_services(
     manifest_path: Path,
 ) -> RAGEvaluationService:
-    """Create evaluator with deterministic fake dependencies."""
-
     classification_1 = FeedbackClassification(
         category="Need Improvements",
         confidence=0.90,
@@ -171,8 +165,8 @@ def create_test_services(
     )
 
     predictions = {
-        "Evaluation feedback 1": classification_1,
-        "Evaluation feedback 2": classification_2,
+        "Development feedback 1": classification_1,
+        "Development feedback 2": classification_2,
     }
 
     rag_service = FakeRAGService(
@@ -180,14 +174,14 @@ def create_test_services(
     )
 
     documents = {
-        "evaluation_001.pdf": [
+        "development_001.pdf": [
             Document(
-                page_content="Evaluation feedback 1"
+                page_content="Development feedback 1"
             )
         ],
-        "evaluation_002.pdf": [
+        "development_002.pdf": [
             Document(
-                page_content="Evaluation feedback 2"
+                page_content="Development feedback 2"
             )
         ],
     }
@@ -201,16 +195,17 @@ def create_test_services(
         output_directory=(
             manifest_path.parent / "results"
         ),
-        rag_service=cast(RAGService, rag_service),
+        rag_service=cast(
+            RAGService,
+            rag_service,
+        ),
         document_service=document_service,
     )
 
 
-def test_manifest_selects_only_evaluation_records(
+def test_manifest_selects_only_development_records(
     tmp_path: Path,
 ) -> None:
-    """Only evaluation records should be loaded from the manifest."""
-
     manifest = (
         tmp_path / "dataset_manifest.csv"
     )
@@ -224,22 +219,53 @@ def test_manifest_selects_only_evaluation_records(
     )
 
     records = (
-        evaluator._load_evaluation_records()
+        evaluator._load_evaluation_records(
+            split="development"
+        )
     )
 
     assert len(records) == 2
 
     assert all(
-        record["split"] == "evaluation"
+        record["split"] == "development"
         for record in records
+    )
+
+
+def test_manifest_can_select_final_benchmark_records(
+    tmp_path: Path,
+) -> None:
+    manifest = (
+        tmp_path / "dataset_manifest.csv"
+    )
+
+    create_manifest(
+        manifest
+    )
+
+    evaluator = create_test_services(
+        manifest
+    )
+
+    records = (
+        evaluator._load_evaluation_records(
+            split="final_benchmark"
+        )
+    )
+
+    assert len(records) == 1
+
+    assert records[0]["split"] == "final_benchmark"
+
+    assert (
+        records[0]["feedback_id"]
+        == "FB-FINAL001"
     )
 
 
 def test_evaluation_calculates_classification_metrics(
     tmp_path: Path,
 ) -> None:
-    """Classification metrics should be calculated correctly."""
-
     manifest = (
         tmp_path / "dataset_manifest.csv"
     )
@@ -253,29 +279,43 @@ def test_evaluation_calculates_classification_metrics(
     )
 
     report = evaluator.evaluate(
-        save_report=False
+        split="development",
+        save_report=False,
     )
 
     metrics = report[
         "classification_metrics"
     ]
 
-    assert metrics["evaluated_cases"] == 2
+    assert (
+        report["evaluation_split"]
+        == "development"
+    )
 
-    assert metrics["correct_cases"] == 2
+    assert metrics[
+        "evaluated_cases"
+    ] == 2
 
-    assert metrics["accuracy"] == 1.0
+    assert metrics[
+        "correct_cases"
+    ] == 2
 
-    assert metrics["macro_f1"] == 0.5
+    assert metrics[
+        "accuracy"
+    ] == 1.0
 
-    assert metrics["weighted_f1"] == 1.0
+    assert metrics[
+        "macro_f1"
+    ] == 0.5
+
+    assert metrics[
+        "weighted_f1"
+    ] == 1.0
 
 
 def test_evaluation_calculates_retrieval_metrics(
     tmp_path: Path,
 ) -> None:
-    """Retrieval metrics should capture reference and category coverage."""
-
     manifest = (
         tmp_path / "dataset_manifest.csv"
     )
@@ -289,7 +329,8 @@ def test_evaluation_calculates_retrieval_metrics(
     )
 
     report = evaluator.evaluate(
-        save_report=False
+        split="development",
+        save_report=False,
     )
 
     metrics = report[
@@ -304,28 +345,18 @@ def test_evaluation_calculates_retrieval_metrics(
         "reference_only_rate"
     ] == 1.0
 
-    # Evaluation 1 retrieves Need Improvements.
-    # Evaluation 2 does not retrieve Poor.
-    assert (
-        metrics[
-            "gold_category_retrieval_rate"
-        ]
-        == 1.0
-    )
+    assert metrics[
+        "gold_category_retrieval_rate"
+    ] == 1.0
 
-    assert (
-        metrics[
-            "average_retrieved_count"
-        ]
-        == 1.5
-    )
+    assert metrics[
+        "average_retrieved_count"
+    ] == 1.5
 
 
 def test_case_results_contain_gold_and_prediction(
     tmp_path: Path,
 ) -> None:
-    """Each successful evaluation should preserve gold and predicted labels."""
-
     manifest = (
         tmp_path / "dataset_manifest.csv"
     )
@@ -339,7 +370,8 @@ def test_case_results_contain_gold_and_prediction(
     )
 
     report = evaluator.evaluate(
-        save_report=False
+        split="development",
+        save_report=False,
     )
 
     first_case = report[
@@ -348,7 +380,7 @@ def test_case_results_contain_gold_and_prediction(
 
     assert (
         first_case["feedback_id"]
-        == "FB-EVAL001"
+        == "FB-DEV001"
     )
 
     assert (
@@ -361,7 +393,9 @@ def test_case_results_contain_gold_and_prediction(
         == "Need Improvements"
     )
 
-    assert first_case["correct"] is True
+    assert first_case[
+        "correct"
+    ] is True
 
     assert (
         first_case["status"]
@@ -369,11 +403,9 @@ def test_case_results_contain_gold_and_prediction(
     )
 
 
-def test_evaluation_does_not_include_reference_manifest_records(
+def test_evaluation_does_not_include_reference_or_final_benchmark(
     tmp_path: Path,
 ) -> None:
-    """Reference records must not be evaluated."""
-
     manifest = (
         tmp_path / "dataset_manifest.csv"
     )
@@ -387,7 +419,8 @@ def test_evaluation_does_not_include_reference_manifest_records(
     )
 
     report = evaluator.evaluate(
-        save_report=False
+        split="development",
+        save_report=False,
     )
 
     paths = [
@@ -395,16 +428,84 @@ def test_evaluation_does_not_include_reference_manifest_records(
         for case in report["cases"]
     ]
 
-    assert "reference_001.pdf" not in paths
+    assert (
+        "reference_001.pdf"
+        not in paths
+    )
+
+    assert (
+        "final_001.pdf"
+        not in paths
+    )
 
     assert len(paths) == 2
+
+
+def test_invalid_evaluation_split_is_rejected(
+    tmp_path: Path,
+) -> None:
+    manifest = (
+        tmp_path / "dataset_manifest.csv"
+    )
+
+    create_manifest(
+        manifest
+    )
+
+    evaluator = create_test_services(
+        manifest
+    )
+
+    with pytest.raises(ValueError):
+        evaluator._load_evaluation_records(
+            split="evaluation"
+        )
+
+
+def test_invalid_manifest_category_is_rejected(
+    tmp_path: Path,
+) -> None:
+    manifest = (
+        tmp_path / "dataset_manifest.csv"
+    )
+
+    with manifest.open(
+        "w",
+        encoding="utf-8",
+        newline="",
+    ) as file:
+        writer = csv.DictWriter(
+            file,
+            fieldnames=[
+                "relative_path",
+                "split",
+                "category",
+            ],
+        )
+
+        writer.writeheader()
+
+        writer.writerow(
+            {
+                "relative_path": "development_001.pdf",
+                "split": "development",
+                "category": "Average",
+            }
+        )
+
+    evaluator = RAGEvaluationService(
+        manifest_path=manifest
+    )
+
+    with pytest.raises(ValueError):
+        evaluator._load_evaluation_records(
+            split="development"
+        )
 
 
 def test_report_can_be_saved(
     tmp_path: Path,
 ) -> None:
-    """JSON and CSV reports should be generated."""
-
     manifest = (
         tmp_path / "dataset_manifest.csv"
     )
@@ -417,19 +518,20 @@ def test_report_can_be_saved(
         tmp_path / "results"
     )
 
+    test_evaluator = create_test_services(
+        manifest
+    )
+
     evaluator = RAGEvaluationService(
         manifest_path=manifest,
         output_directory=output_directory,
-        rag_service=create_test_services(
-            manifest
-        ).rag_service,
-        document_service=create_test_services(
-            manifest
-        ).document_service,
+        rag_service=test_evaluator.rag_service,
+        document_service=test_evaluator.document_service,
     )
 
     evaluator.evaluate(
-        save_report=True
+        split="development",
+        save_report=True,
     )
 
     json_files = list(
@@ -457,56 +559,20 @@ def test_report_can_be_saved(
 
     assert (
         saved_report[
+            "evaluation_split"
+        ]
+        == "development"
+    )
+
+    assert (
+        saved_report[
             "classification_metrics"
         ]["accuracy"]
         == 1.0
     )
 
 
-def test_invalid_manifest_category_is_rejected(
-    tmp_path: Path,
-) -> None:
-    """Unknown gold categories should cause manifest validation to fail."""
-
-    manifest = (
-        tmp_path / "dataset_manifest.csv"
-    )
-
-    with manifest.open(
-        "w",
-        encoding="utf-8",
-        newline="",
-    ) as file:
-        writer = csv.DictWriter(
-            file,
-            fieldnames=[
-                "relative_path",
-                "split",
-                "category",
-            ],
-        )
-
-        writer.writeheader()
-
-        writer.writerow(
-            {
-                "relative_path": "evaluation_001.pdf",
-                "split": "evaluation",
-                "category": "Average",
-            }
-        )
-
-    evaluator = RAGEvaluationService(
-        manifest_path=manifest
-    )
-
-    with pytest.raises(ValueError):
-        evaluator._load_evaluation_records()
-
-
 def test_safe_divide_handles_zero() -> None:
-    """Division by zero should return zero."""
-
     assert (
         RAGEvaluationService._safe_divide(
             1,

@@ -28,6 +28,11 @@ VALID_CATEGORIES = (
     "Poor",
 )
 
+VALID_EVALUATION_SPLITS = (
+    "development",
+    "final_benchmark",
+)
+
 DEFAULT_MANIFEST_PATH = Path(
     "Sample_Data/evaluation/dataset_manifest.csv"
 )
@@ -36,13 +41,11 @@ DEFAULT_OUTPUT_DIRECTORY = Path(
     "backend/evaluation/results"
 )
 
+DEFAULT_EVALUATION_SPLIT = "development"
+
 
 @dataclass
 class EvaluationCaseResult:
-    """
-    Result for one held-out evaluation document.
-    """
-
     feedback_id: str
     relative_path: str
     gold_category: str
@@ -64,13 +67,6 @@ class EvaluationCaseResult:
 
 
 class RAGEvaluationService:
-    """
-    Evaluate the complete RAG pipeline using the held-out evaluation set.
-
-    The service uses dependency injection so unit tests can provide fake
-    RAG and document services without calling Gemini.
-    """
-
     def __init__(
         self,
         manifest_path: Path | str | None = None,
@@ -78,23 +74,6 @@ class RAGEvaluationService:
         rag_service: RAGService | None = None,
         document_service: Any | None = None,
     ) -> None:
-        """
-        Initialize the evaluation service.
-
-        Args:
-            manifest_path:
-                Path to dataset_manifest.csv.
-
-            output_directory:
-                Directory where JSON and CSV reports are written.
-
-            rag_service:
-                Optional RAGService instance.
-
-            document_service:
-                Optional document service for dependency injection in tests.
-        """
-
         self._load_environment()
 
         self.manifest_path = Path(
@@ -121,39 +100,22 @@ class RAGEvaluationService:
             else get_document_service()
         )
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
-
     def evaluate(
         self,
+        split: str = DEFAULT_EVALUATION_SPLIT,
         include_ragas: bool = False,
         ragas_sample_size: int | None = None,
         save_report: bool = True,
     ) -> dict[str, Any]:
-        """
-        Run the complete evaluation.
+        self._validate_evaluation_split(split)
 
-        Args:
-            include_ragas:
-                Whether to additionally run Ragas Faithfulness.
-
-            ragas_sample_size:
-                Maximum number of evaluation cases on which Ragas is run.
-                If None, all successfully evaluated cases are used.
-
-            save_report:
-                Whether JSON and CSV reports should be written.
-
-        Returns:
-            Complete evaluation report.
-        """
-
-        records = self._load_evaluation_records()
+        records = self._load_evaluation_records(
+            split=split
+        )
 
         if not records:
             raise ValueError(
-                "No evaluation records were found in the manifest."
+                f"No records were found for evaluation split: {split}"
             )
 
         case_results: list[EvaluationCaseResult] = []
@@ -192,8 +154,12 @@ class RAGEvaluationService:
             "manifest_path": str(
                 self.manifest_path
             ),
+            "evaluation_split": split,
             "total_evaluation_records": len(
                 records
+            ),
+            "reference_corpus_policy": (
+                "Only reference split documents may be retrieved."
             ),
             "classification_metrics": classification_metrics,
             "retrieval_metrics": retrieval_metrics,
@@ -222,16 +188,22 @@ class RAGEvaluationService:
 
         return report
 
-    # ------------------------------------------------------------------
-    # Manifest loading
-    # ------------------------------------------------------------------
+    def _validate_evaluation_split(
+        self,
+        split: str,
+    ) -> None:
+        if split not in VALID_EVALUATION_SPLITS:
+            raise ValueError(
+                "Invalid evaluation split. "
+                f"Expected one of {VALID_EVALUATION_SPLITS}, "
+                f"got '{split}'."
+            )
 
     def _load_evaluation_records(
         self,
+        split: str = DEFAULT_EVALUATION_SPLIT,
     ) -> list[dict[str, str]]:
-        """
-        Load only evaluation records from dataset_manifest.csv.
-        """
+        self._validate_evaluation_split(split)
 
         if not self.manifest_path.exists():
             raise FileNotFoundError(
@@ -270,33 +242,30 @@ class RAGEvaluationService:
 
             records = list(reader)
 
-        evaluation_records = [
+        selected_records = [
             record
             for record in records
-            if record["split"] == "evaluation"
+            if record["split"].strip().lower()
+            == split
         ]
 
-        for record in evaluation_records:
-            if record["category"] not in VALID_CATEGORIES:
+        for record in selected_records:
+            category = record["category"].strip()
+
+            if category not in VALID_CATEGORIES:
                 raise ValueError(
                     "Invalid gold category in manifest: "
-                    f"{record['category']}"
+                    f"{category}"
                 )
 
-        return evaluation_records
+            record["category"] = category
 
-    # ------------------------------------------------------------------
-    # Single-case evaluation
-    # ------------------------------------------------------------------
+        return selected_records
 
     def _evaluate_single_case(
         self,
         record: dict[str, str],
     ) -> EvaluationCaseResult:
-        """
-        Run RAG evaluation for one evaluation document.
-        """
-
         relative_path = record[
             "relative_path"
         ]
@@ -353,10 +322,13 @@ class RAGEvaluationService:
                 in retrieved_categories
             )
 
-            retrieved_only_reference = all(
-                example.get("split")
-                == "reference"
-                for example in retrieved_examples
+            retrieved_only_reference = (
+                len(retrieved_examples) > 0
+                and all(
+                    example.get("split")
+                    == "reference"
+                    for example in retrieved_examples
+                )
             )
 
             predicted_category = (
@@ -424,77 +396,61 @@ class RAGEvaluationService:
             )
 
     def _load_feedback_text(
-            self,
-            relative_path: str,
-        ) -> str:
-            """
-            Load and combine text from an evaluation PDF.
+        self,
+        relative_path: str,
+    ) -> str:
+        pdf_path = Path(
+            relative_path
+        )
 
-            File existence and PDF validity are delegated to the configured
-            document service. This keeps the evaluator testable because a fake
-            document service can supply documents without requiring real files.
-            """
+        documents = (
+            self.document_service.load_pdf(
+                pdf_path
+            )
+        )
 
-            pdf_path = Path(
-                relative_path
+        if isinstance(
+            documents,
+            list,
+        ):
+            document_list = documents
+        else:
+            document_list = [
+                documents
+            ]
+
+        text_parts: list[str] = []
+
+        for document in document_list:
+            page_content = getattr(
+                document,
+                "page_content",
+                None,
             )
 
-            documents = (
-                self.document_service.load_pdf(
-                    pdf_path
+            if page_content:
+                text_parts.append(
+                    page_content.strip()
                 )
+
+        feedback_text = "\n\n".join(
+            part
+            for part in text_parts
+            if part
+        )
+
+        if not feedback_text.strip():
+            raise ValueError(
+                "No usable text extracted from evaluation PDF: "
+                f"{pdf_path}"
             )
 
-            if isinstance(
-                documents,
-                list,
-            ):
-                document_list = documents
-            else:
-                document_list = [
-                    documents
-                ]
-
-            text_parts: list[str] = []
-
-            for document in document_list:
-                page_content = getattr(
-                    document,
-                    "page_content",
-                    None,
-                )
-
-                if page_content:
-                    text_parts.append(
-                        page_content.strip()
-                    )
-
-            feedback_text = "\n\n".join(
-                part
-                for part in text_parts
-                if part
-            )
-
-            if not feedback_text.strip():
-                raise ValueError(
-                    "No usable text extracted from evaluation PDF: "
-                    f"{pdf_path}"
-                )
-
-            return feedback_text
-
-    # ------------------------------------------------------------------
-    # Classification metrics
-    # ------------------------------------------------------------------
+        return feedback_text
 
     def _calculate_classification_metrics(
         self,
         cases: list[EvaluationCaseResult],
     ) -> dict[str, Any]:
-        """
-        Calculate classification metrics without scikit-learn.
-        """
-
         successful_cases = [
             case
             for case in cases
@@ -529,7 +485,10 @@ class RAGEvaluationService:
             correct / total
         )
 
-        per_class: dict[str, dict[str, float | int]] = {}
+        per_class: dict[
+            str,
+            dict[str, float | int],
+        ] = {}
 
         for category in VALID_CATEGORIES:
             true_positive = sum(
@@ -669,27 +628,10 @@ class RAGEvaluationService:
             "confusion_matrix": confusion_matrix,
         }
 
-    # ------------------------------------------------------------------
-    # Retrieval metrics
-    # ------------------------------------------------------------------
-
     def _calculate_retrieval_metrics(
         self,
         cases: list[EvaluationCaseResult],
     ) -> dict[str, Any]:
-        """
-        Calculate retrieval-specific metrics that are meaningful for this
-        classification task.
-
-        These are not Ragas Context Precision/Recall metrics.
-
-        Metrics:
-        - retrieval_success_rate
-        - reference_only_rate
-        - gold_category_retrieval_rate
-        - average_retrieved_count
-        """
-
         successful_cases = [
             case
             for case in cases
@@ -765,38 +707,34 @@ class RAGEvaluationService:
             ),
         }
 
-    # ------------------------------------------------------------------
-    # Ragas
-    # ------------------------------------------------------------------
-
     def _run_ragas_evaluation(
         self,
         case_results: list[EvaluationCaseResult],
         sample_size: int | None,
     ) -> dict[str, Any]:
-        """
-        Run optional Ragas Faithfulness evaluation.
-
-        The Ragas metric evaluates whether the generated explanation is
-        supported by the supplied context.
-
-        We include the current feedback itself together with the retrieved
-        reference examples as context because the explanation is supposed
-        to be grounded in both the current document and RAG evidence.
-
-        This is intentionally separate from retrieval-quality metrics.
-        """
-
         try:
             from google import genai
-            ragas = importlib.import_module("ragas")
-            EvaluationDataset = ragas.EvaluationDataset
-            llm_factory = importlib.import_module(
-                "ragas.llms"
-            ).llm_factory
-            Faithfulness = importlib.import_module(
-                "ragas.metrics.collections"
-            ).Faithfulness
+
+            ragas = importlib.import_module(
+                "ragas"
+            )
+
+            EvaluationDataset = (
+                ragas.EvaluationDataset
+            )
+
+            llm_factory = (
+                importlib.import_module(
+                    "ragas.llms"
+                ).llm_factory
+            )
+
+            Faithfulness = (
+                importlib.import_module(
+                    "ragas.metrics.collections"
+                ).Faithfulness
+            )
+
         except ImportError as exc:
             raise ImportError(
                 "Ragas evaluation requires ragas and google-genai. "
@@ -923,14 +861,6 @@ class RAGEvaluationService:
         self,
         case: EvaluationCaseResult,
     ) -> list[str]:
-        """
-        Build context for Ragas Faithfulness evaluation.
-
-        The current feedback is included because the generated explanation
-        should be grounded in the original feedback as well as the
-        retrieved historical examples.
-        """
-
         contexts = [
             self._get_feedback_text_for_case(
                 case
@@ -958,13 +888,6 @@ class RAGEvaluationService:
         self,
         case: EvaluationCaseResult,
     ) -> str:
-        """
-        Reload the evaluation feedback for Ragas.
-
-        This avoids changing EvaluationCaseResult just to store the full
-        source text.
-        """
-
         return self._load_feedback_text(
             case.relative_path
         )
@@ -973,21 +896,6 @@ class RAGEvaluationService:
         self,
         case: EvaluationCaseResult,
     ) -> list[str]:
-        """
-        Retrieve the textual content of the reference examples used for
-        the current case.
-
-        The standard RAG evaluation result stores only IDs/categories, so
-        this method reloads reference documents from the vector store
-        through the RAG chain when Ragas evaluation is requested.
-        """
-
-        # The evaluation report intentionally keeps the core evaluator
-        # independent from the FAISS implementation.
-        #
-        # For the Ragas-only pass, we obtain the retrieved examples again
-        # through the public RAG service.
-
         feedback_text = self._load_feedback_text(
             case.relative_path
         )
@@ -1019,13 +927,6 @@ class RAGEvaluationService:
         self,
         result: Any,
     ) -> float:
-        """
-        Convert a Ragas metric result into a float.
-
-        Supports the current MetricResult-style object and a plain
-        numeric return value.
-        """
-
         if isinstance(
             result,
             (int, float),
@@ -1050,16 +951,10 @@ class RAGEvaluationService:
             f"{type(result).__name__}"
         )
 
-    # ------------------------------------------------------------------
-    # Reporting
-    # ------------------------------------------------------------------
-
     def _save_report(
         self,
         report: dict[str, Any],
     ) -> None:
-        """Save evaluation results as JSON and CSV."""
-
         self.output_directory.mkdir(
             parents=True,
             exist_ok=True,
@@ -1069,14 +964,19 @@ class RAGEvaluationService:
             "%Y%m%d_%H%M%S"
         )
 
+        split = report.get(
+            "evaluation_split",
+            "unknown",
+        )
+
         json_path = (
             self.output_directory
-            / f"rag_evaluation_{timestamp}.json"
+            / f"rag_evaluation_{split}_{timestamp}.json"
         )
 
         csv_path = (
             self.output_directory
-            / f"rag_evaluation_{timestamp}.csv"
+            / f"rag_evaluation_{split}_{timestamp}.csv"
         )
 
         with json_path.open(
@@ -1108,8 +1008,6 @@ class RAGEvaluationService:
         cases: list[dict[str, Any]],
         csv_path: Path,
     ) -> None:
-        """Save per-case evaluation results as CSV."""
-
         if not cases:
             return
 
@@ -1192,8 +1090,6 @@ class RAGEvaluationService:
         self,
         report: dict[str, Any],
     ) -> None:
-        """Print a concise evaluation summary."""
-
         metrics = report[
             "classification_metrics"
         ]
@@ -1205,8 +1101,13 @@ class RAGEvaluationService:
         print(
             "\n"
             "=============================================\n"
-            "Stage 11: RAG Evaluation Summary\n"
+            "RAG Evaluation Summary\n"
             "============================================="
+        )
+
+        print(
+            f"Evaluation split: "
+            f"{report['evaluation_split']}"
         )
 
         print(
@@ -1268,39 +1169,27 @@ class RAGEvaluationService:
             f"{self._format_metric(retrieval['average_retrieved_count'])}"
         )
 
-    # ------------------------------------------------------------------
-    # Utilities
-    # ------------------------------------------------------------------
-
     def _derive_feedback_id(
         self,
         relative_path: str,
     ) -> str:
-        """
-        Generate a deterministic fallback feedback ID from the path.
-
-        This is only used if the manifest itself does not provide one.
-        """
-
-        import hashlib
-
-        digest = hashlib.sha256(
-            relative_path.encode(
-                "utf-8"
+        digest = (
+            __import__("hashlib")
+            .sha256(
+                relative_path.encode(
+                    "utf-8"
+                )
             )
-        ).hexdigest()
-
-        return (
-            f"FB-{digest[:12]}"
+            .hexdigest()
         )
+
+        return f"FB-{digest[:12]}"
 
     @staticmethod
     def _safe_divide(
         numerator: float,
         denominator: float,
     ) -> float:
-        """Safely divide two numbers."""
-
         if denominator == 0:
             return 0.0
 
@@ -1310,8 +1199,6 @@ class RAGEvaluationService:
     def _format_metric(
         value: float | None,
     ) -> str:
-        """Format a metric for console output."""
-
         if value is None:
             return "N/A"
 
@@ -1319,8 +1206,6 @@ class RAGEvaluationService:
 
     @staticmethod
     def _load_environment() -> None:
-        """Load backend/.env."""
-
         backend_directory = (
             Path(__file__).resolve().parents[1]
         )
@@ -1340,10 +1225,6 @@ def get_rag_evaluation_service(
     rag_service: RAGService | None = None,
     document_service: Any | None = None,
 ) -> RAGEvaluationService:
-    """
-    Return a configured RAGEvaluationService.
-    """
-
     return RAGEvaluationService(
         manifest_path=manifest_path,
         output_directory=output_directory,
@@ -1353,27 +1234,23 @@ def get_rag_evaluation_service(
 
 
 def main() -> None:
-    """
-    Command-line entry point for Stage 11 evaluation.
-
-    Default:
-        Evaluate all 20 held-out cases using classification and retrieval
-        metrics.
-
-    Optional:
-        --ragas
-        Also run Ragas Faithfulness evaluation.
-
-        --ragas-sample-size N
-        Evaluate Ragas Faithfulness on at most N successful cases.
-    """
-
     import argparse
 
     parser = argparse.ArgumentParser(
         description=(
             "Evaluate the AI Feedback Intelligence RAG pipeline."
         )
+    )
+
+    parser.add_argument(
+        "--split",
+        choices=VALID_EVALUATION_SPLITS,
+        default=DEFAULT_EVALUATION_SPLIT,
+        help=(
+            "Dataset split to evaluate. "
+            "Use development while optimizing. "
+            "Use final_benchmark only for the frozen final evaluation."
+        ),
     )
 
     parser.add_argument(
@@ -1406,6 +1283,7 @@ def main() -> None:
     evaluator = get_rag_evaluation_service()
 
     evaluator.evaluate(
+        split=args.split,
         include_ragas=args.ragas,
         ragas_sample_size=args.ragas_sample_size,
         save_report=not args.no_save,

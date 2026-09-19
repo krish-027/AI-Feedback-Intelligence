@@ -1,0 +1,696 @@
+{
+  "evaluation_timestamp": "2026-09-19T02:58:43",
+  "manifest_path": "Sample_Data\\evaluation\\dataset_manifest.csv",
+  "evaluation_split": "final_benchmark",
+  "total_evaluation_records": 20,
+  "reference_corpus_policy": "Only reference split documents may be retrieved.",
+  "classification_metrics": {
+    "evaluated_cases": 19,
+    "correct_cases": 17,
+    "accuracy": 0.8947368421052632,
+    "macro_precision": 0.95,
+    "macro_recall": 0.8958333333333334,
+    "macro_f1": 0.9137806637806638,
+    "weighted_f1": 0.8944330523277891,
+    "per_class": {
+      "Excellent": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 1
+      },
+      "Good": {
+        "precision": 1.0,
+        "recall": 0.75,
+        "f1": 0.8571428571428571,
+        "support": 4
+      },
+      "Need Improvements": {
+        "precision": 0.8,
+        "recall": 1.0,
+        "f1": 0.888888888888889,
+        "support": 8
+      },
+      "Poor": {
+        "precision": 1.0,
+        "recall": 0.8333333333333334,
+        "f1": 0.9090909090909091,
+        "support": 6
+      }
+    },
+    "confusion_matrix": {
+      "Excellent": {
+        "Excellent": 1,
+        "Good": 0,
+        "Need Improvements": 0,
+        "Poor": 0
+      },
+      "Good": {
+        "Excellent": 0,
+        "Good": 3,
+        "Need Improvements": 1,
+        "Poor": 0
+      },
+      "Need Improvements": {
+        "Excellent": 0,
+        "Good": 0,
+        "Need Improvements": 8,
+        "Poor": 0
+      },
+      "Poor": {
+        "Excellent": 0,
+        "Good": 0,
+        "Need Improvements": 1,
+        "Poor": 5
+      }
+    }
+  },
+  "retrieval_metrics": {
+    "evaluated_cases": 19,
+    "retrieval_success_rate": 1.0,
+    "reference_only_rate": 1.0,
+    "gold_category_retrieval_rate": 0.9473684210526315,
+    "average_retrieved_count": 4.0
+  },
+  "cases": [
+    {
+      "feedback_id": "FB-6cdc8a7001a2",
+      "relative_path": "Sample_Data/customer_feedback_forms/Customer_Feedback_005.pdf",
+      "gold_category": "Poor",
+      "predicted_category": "Poor",
+      "confidence": 1.0,
+      "explanation": "The feedback indicates a substantially negative experience with multiple low ratings for employee behavior, listening, and professionalism, culminating in an overall satisfaction rating of 1 and a 'No' recommendation. Despite the 'Excellent customer handling' comment, the numerical ratings strongly suggest severe dissatisfaction, aligning with the 'Poor' category.",
+      "flagged_keywords": [
+        "Employee greeted you politely 2",
+        "Employee listened carefully to your concerns 1",
+        "Employee behaved professionally 1",
+        "Overall satisfaction with employee behavior 1",
+        "Recommendation: No"
+      ],
+      "retrieved_feedback_ids": [
+        "FB-6cdc8a7001a2",
+        "FB-f5034132e25a",
+        "FB-089f5cfbcd6b",
+        "FB-3753b1d97a0a"
+      ],
+      "retrieved_categories": [
+        "Poor",
+        "Good",
+        "Need Improvements",
+        "Need Improvements"
+      ],
+      "gold_category_retrieved": true,
+      "retrieved_only_reference": true,
+      "correct": true,
+      "status": "success",
+      "error": null
+    },
+    {
+      "feedback_id": "FB-914b1bca6457",
+      "relative_path": "Sample_Data/customer_feedback_forms/Customer_Feedback_008.pdf",
+      "gold_category": "Good",
+      "predicted_category": "Need Improvements",
+      "confidence": 0.9,
+      "explanation": "The feedback indicates several areas needing improvement, specifically in listening carefully, explaining services clearly, and efficient issue resolution, despite an overall satisfaction rating of 4 and a polite greeting. The 'No' recommendation further supports that meaningful deficiencies exist.",
+      "flagged_keywords": [
+        "listened carefully to your concerns 2",
+        "explained banking services clearly 2",
+        "resolved your issue efficiently 3",
+        "Overall satisfaction with employee behavior 4",
+        "Recommendation: No"
+      ],
+      "retrieved_feedback_ids": [
+        "FB-914b1bca6457",
+        "FB-0841a5875968",
+        "FB-0f1aedd4fc8e",
+        "FB-cce0a688e50c"
+      ],
+      "retrieved_categories": [
+        "Need Improvements",
+        "Need Improvements",
+        "Poor",
+        "Need Improvements"
+      ],
+      "gold_category_retrieved": false,
+      "retrieved_only_reference": true,
+      "correct": false,
+      "status": "success",
+      "error": null
+    },
+    {
+      "feedback_id": "FB-84e41648b905",
+      "relative_path": "Sample_Data/customer_feedback_forms/Customer_Feedback_011.pdf",
+      "gold_category": "Poor",
+      "predicted_category": "Need Improvements",
+      "confidence": 0.9,
+      "explanation": "The feedback indicates several areas needing improvement, specifically in listening to concerns and explaining services clearly, despite some positive ratings. The overall satisfaction is low, and the customer explicitly states 'Need improvement in response time' and would not recommend the bank, aligning with the 'Need Improvements' category where meaningful deficiencies are present but severe dissatisfaction does not dominate the entire experience.",
+      "flagged_keywords": [
+        "listened carefully to your concerns 2",
+        "explained banking services clearly 1",
+        "Overall satisfaction with employee behavior 1",
+        "Need improvement in response time",
+        "Recommendation: No"
+      ],
+      "retrieved_feedback_ids": [
+        "FB-2bdd209e0eb4",
+        "FB-20b70517dd8b",
+        "FB-a6957d9d8d6d",
+        "FB-16f4756586b6"
+      ],
+      "retrieved_categories": [
+        "Need Improvements",
+        "Need Improvements",
+        "Poor",
+        "Need Improvements"
+      ],
+      "gold_category_retrieved": true,
+      "retrieved_only_reference": true,
+      "correct": false,
+      "status": "success",
+      "error": null
+    },
+    {
+      "feedback_id": "FB-c5dd8e323f86",
+      "relative_path": "Sample_Data/customer_feedback_forms/Customer_Feedback_012.pdf",
+      "gold_category": "Need Improvements",
+      "predicted_category": "Need Improvements",
+      "confidence": 0.9,
+      "explanation": "The feedback indicates a meaningful deficiency in how the employee explained banking services (rating 1) and behaved professionally (rating 2), despite some positive aspects like listening carefully and efficient issue resolution. The overall satisfaction is neutral (rating 3), and the customer would not recommend the bank, which points to a need for improvement rather than a satisfactory or poor experience.",
+      "flagged_keywords": [
+        "explained banking services clearly 1",
+        "behaved professionally 2",
+        "Overall satisfaction with employee behavior 3",
+        "Recommendation: No"
+      ],
+      "retrieved_feedback_ids": [
+        "FB-c5dd8e323f86",
+        "FB-ec943c6a4604",
+        "FB-681c7c56c217",
+        "FB-21501bda1d17"
+      ],
+      "retrieved_categories": [
+        "Need Improvements",
+        "Need Improvements",
+        "Need Improvements",
+        "Poor"
+      ],
+      "gold_category_retrieved": true,
+      "retrieved_only_reference": true,
+      "correct": true,
+      "status": "success",
+      "error": null
+    },
+    {
+      "feedback_id": "FB-492f7ecad73c",
+      "relative_path": "Sample_Data/customer_feedback_forms/Customer_Feedback_015.pdf",
+      "gold_category": "Excellent",
+      "predicted_category": "Excellent",
+      "confidence": 0.9,
+      "explanation": "The feedback indicates high satisfaction with the employee's behavior, politeness, listening skills, professionalism, and efficiency in resolving the issue. Although the explanation of banking services received a lower rating, the overall experience is strongly positive, leading to a recommendation.",
+      "flagged_keywords": [
+        "Employee greeted you politely 4",
+        "Employee listened carefully to your concerns 4",
+        "Employee behaved professionally 5",
+        "Employee resolved your issue efficiently 5",
+        "Overall satisfaction with employee behavior 5",
+        "Employee was courteous and knowledgeable",
+        "Recommendation: Yes"
+      ],
+      "retrieved_feedback_ids": [
+        "FB-492f7ecad73c",
+        "FB-061c661e112d",
+        "FB-421c8efda2b1",
+        "FB-44585df8f08a"
+      ],
+      "retrieved_categories": [
+        "Excellent",
+        "Need Improvements",
+        "Poor",
+        "Need Improvements"
+      ],
+      "gold_category_retrieved": true,
+      "retrieved_only_reference": true,
+      "correct": true,
+      "status": "success",
+      "error": null
+    },
+    {
+      "feedback_id": "FB-63399e4d3363",
+      "relative_path": "Sample_Data/customer_feedback_forms/Customer_Feedback_023.pdf",
+      "gold_category": "Good",
+      "predicted_category": "Good",
+      "confidence": 0.9,
+      "explanation": "The feedback explicitly states \"Overall good experience\" and provides generally positive ratings, with one lower rating for professionalism (2) that does not materially detract from the overall positive sentiment. The overall satisfaction is rated 5.",
+      "flagged_keywords": [
+        "Overall good experience",
+        "Overall satisfaction with employee behavior 5",
+        "Employee behaved professionally 2"
+      ],
+      "retrieved_feedback_ids": [
+        "FB-63399e4d3363",
+        "FB-a46e027f10b7",
+        "FB-aaa315073954",
+        "FB-80ea0e2fd649"
+      ],
+      "retrieved_categories": [
+        "Good",
+        "Poor",
+        "Need Improvements",
+        "Good"
+      ],
+      "gold_category_retrieved": true,
+      "retrieved_only_reference": true,
+      "correct": true,
+      "status": "success",
+      "error": null
+    },
+    {
+      "feedback_id": "FB-0243d7940d68",
+      "relative_path": "Sample_Data/customer_feedback_forms/Customer_Feedback_028.pdf",
+      "gold_category": "Need Improvements",
+      "predicted_category": "Need Improvements",
+      "confidence": 0.9,
+      "explanation": "The feedback indicates a generally satisfactory experience with several positive ratings, but explicitly states 'Need improvement in response time' and a 'No' recommendation, which points to a meaningful deficiency that requires improvement.",
+      "flagged_keywords": [
+        "Need improvement in response time",
+        "No"
+      ],
+      "retrieved_feedback_ids": [
+        "FB-0243d7940d68",
+        "FB-373d16937825",
+        "FB-ff4b09bacca4",
+        "FB-1aeb872eb96c"
+      ],
+      "retrieved_categories": [
+        "Need Improvements",
+        "Good",
+        "Poor",
+        "Excellent"
+      ],
+      "gold_category_retrieved": true,
+      "retrieved_only_reference": true,
+      "correct": true,
+      "status": "success",
+      "error": null
+    },
+    {
+      "feedback_id": "FB-e902340a71fa",
+      "relative_path": "Sample_Data/customer_feedback_forms/Customer_Feedback_029.pdf",
+      "gold_category": "Poor",
+      "predicted_category": "Poor",
+      "confidence": 0.9,
+      "explanation": "The feedback indicates a substantially negative experience with low ratings for politeness, listening, professionalism, and especially efficiency in resolving the issue. Despite a positive comment about courtesy and knowledge, the overall satisfaction is very low, and the customer would not recommend the bank, aligning with a 'Poor' classification.",
+      "flagged_keywords": [
+        "greeted you politely 2",
+        "listened carefully to your concerns 2",
+        "behaved professionally 2",
+        "resolved your issue efficiently 1",
+        "Overall satisfaction with employee behavior 2",
+        "Recommendation: No"
+      ],
+      "retrieved_feedback_ids": [
+        "FB-36180612f7a9",
+        "FB-681c7c56c217",
+        "FB-6d643ce6c14a",
+        "FB-331898dc0d44"
+      ],
+      "retrieved_categories": [
+        "Poor",
+        "Need Improvements",
+        "Good",
+        "Good"
+      ],
+      "gold_category_retrieved": true,
+      "retrieved_only_reference": true,
+      "correct": true,
+      "status": "success",
+      "error": null
+    },
+    {
+      "feedback_id": "FB-19d36006cb3a",
+      "relative_path": "Sample_Data/customer_feedback_forms/Customer_Feedback_051.pdf",
+      "gold_category": "Need Improvements",
+      "predicted_category": "Need Improvements",
+      "confidence": 1.0,
+      "explanation": "The feedback indicates several areas needing improvement, specifically with the employee listening carefully, explaining services clearly, and resolving issues efficiently, despite some positive ratings and a general statement of satisfaction. The 'No' recommendation also points to a less than optimal experience. This aligns with 'Need Improvements' where meaningful deficiencies are present but severe dissatisfaction does not dominate.",
+      "flagged_keywords": [
+        "listened carefully to your concerns 1",
+        "explained banking services clearly 2",
+        "resolved your issue efficiently 1",
+        "Overall satisfaction with employee behavior 3",
+        "Satisfied with the service",
+        "Recommendation: No"
+      ],
+      "retrieved_feedback_ids": [
+        "FB-19d36006cb3a",
+        "FB-c83d3ac23ba2",
+        "FB-ed24c449887f",
+        "FB-e9385db84d81"
+      ],
+      "retrieved_categories": [
+        "Need Improvements",
+        "Need Improvements",
+        "Poor",
+        "Poor"
+      ],
+      "gold_category_retrieved": true,
+      "retrieved_only_reference": true,
+      "correct": true,
+      "status": "success",
+      "error": null
+    },
+    {
+      "feedback_id": "FB-a6957d9d8d6d",
+      "relative_path": "Sample_Data/customer_feedback_forms/Customer_Feedback_054.pdf",
+      "gold_category": "Poor",
+      "predicted_category": "Poor",
+      "confidence": 1.0,
+      "explanation": "Despite the 'Overall good experience' comment, the very low ratings for 'Employee greeted you politely' (1) and 'Overall satisfaction with employee behavior' (1), combined with a 'No' recommendation, indicate a substantially negative experience. This aligns with the 'Poor' category, as the severe dissatisfaction dominates the feedback, similar to Reference Example 1 and 4.",
+      "flagged_keywords": [
+        "Employee greeted you politely 1",
+        "Overall satisfaction with employee behavior 1",
+        "Overall good experience",
+        "No"
+      ],
+      "retrieved_feedback_ids": [
+        "FB-a6957d9d8d6d",
+        "FB-ed24c449887f",
+        "FB-3753b1d97a0a",
+        "FB-cb051dfb1ebf"
+      ],
+      "retrieved_categories": [
+        "Poor",
+        "Poor",
+        "Need Improvements",
+        "Poor"
+      ],
+      "gold_category_retrieved": true,
+      "retrieved_only_reference": true,
+      "correct": true,
+      "status": "success",
+      "error": null
+    },
+    {
+      "feedback_id": "FB-0a8a3c2393f2",
+      "relative_path": "Sample_Data/customer_feedback_forms/Customer_Feedback_058.pdf",
+      "gold_category": "Good",
+      "predicted_category": "Good",
+      "confidence": 0.9,
+      "explanation": "The feedback indicates a generally positive experience with 'Very professional and helpful staff' despite some lower ratings for listening and issue resolution. The overall sentiment is positive, aligning with the 'Good' category where minor shortcomings do not materially damage the overall experience.",
+      "flagged_keywords": [
+        "Very professional and helpful staff",
+        "Employee greeted you politely 5",
+        "Employee behaved professionally 5",
+        "Employee listened carefully to your concerns 1",
+        "Employee resolved your issue efficiently 2",
+        "Overall satisfaction with employee behavior 1",
+        "Recommendation: No"
+      ],
+      "retrieved_feedback_ids": [
+        "FB-0a8a3c2393f2",
+        "FB-21501bda1d17",
+        "FB-c96643260bc9",
+        "FB-681c7c56c217"
+      ],
+      "retrieved_categories": [
+        "Good",
+        "Poor",
+        "Good",
+        "Need Improvements"
+      ],
+      "gold_category_retrieved": true,
+      "retrieved_only_reference": true,
+      "correct": true,
+      "status": "success",
+      "error": null
+    },
+    {
+      "feedback_id": "FB-aaa315073954",
+      "relative_path": "Sample_Data/customer_feedback_forms/Customer_Feedback_060.pdf",
+      "gold_category": "Need Improvements",
+      "predicted_category": "Need Improvements",
+      "confidence": 1.0,
+      "explanation": "The feedback indicates a mixed experience with specific areas needing improvement, such as politeness, clarity of explanations, and professional behavior, despite some positive aspects like listening and efficient issue resolution. The 'No' recommendation further supports that the overall experience is not satisfactory enough.",
+      "flagged_keywords": [
+        "Employee greeted you politely 1",
+        "Employee explained banking services clearly 2",
+        "Employee behaved professionally 2",
+        "Overall satisfaction with employee behavior 3",
+        "Recommendation: No"
+      ],
+      "retrieved_feedback_ids": [
+        "FB-aaa315073954",
+        "FB-b26d57c80228",
+        "FB-6d2fb83ff15a",
+        "FB-63399e4d3363"
+      ],
+      "retrieved_categories": [
+        "Need Improvements",
+        "Need Improvements",
+        "Need Improvements",
+        "Good"
+      ],
+      "gold_category_retrieved": true,
+      "retrieved_only_reference": true,
+      "correct": true,
+      "status": "success",
+      "error": null
+    },
+    {
+      "feedback_id": "FB-2c1d93ff9e8a",
+      "relative_path": "Sample_Data/customer_feedback_forms/Customer_Feedback_061.pdf",
+      "gold_category": "Poor",
+      "predicted_category": null,
+      "confidence": null,
+      "explanation": null,
+      "flagged_keywords": [],
+      "retrieved_feedback_ids": [],
+      "retrieved_categories": [],
+      "gold_category_retrieved": false,
+      "retrieved_only_reference": false,
+      "correct": null,
+      "status": "error",
+      "error": "ReadError: [WinError 10054] An existing connection was forcibly closed by the remote host"
+    },
+    {
+      "feedback_id": "FB-373d16937825",
+      "relative_path": "Sample_Data/customer_feedback_forms/Customer_Feedback_063.pdf",
+      "gold_category": "Good",
+      "predicted_category": "Good",
+      "confidence": 0.9,
+      "explanation": "The feedback indicates an overall positive experience with professional and helpful staff, despite some lower ratings in specific criteria. The 'Overall satisfaction with employee behavior' is rated 4, supporting a 'Good' classification, similar to Reference Example 1.",
+      "flagged_keywords": [
+        "Very professional and helpful staff",
+        "Overall satisfaction with employee behavior 4"
+      ],
+      "retrieved_feedback_ids": [
+        "FB-373d16937825",
+        "FB-63399e4d3363",
+        "FB-a46e027f10b7",
+        "FB-6d2fb83ff15a"
+      ],
+      "retrieved_categories": [
+        "Good",
+        "Good",
+        "Poor",
+        "Need Improvements"
+      ],
+      "gold_category_retrieved": true,
+      "retrieved_only_reference": true,
+      "correct": true,
+      "status": "success",
+      "error": null
+    },
+    {
+      "feedback_id": "FB-d8daa1ec4717",
+      "relative_path": "Sample_Data/customer_feedback_forms/Customer_Feedback_072.pdf",
+      "gold_category": "Need Improvements",
+      "predicted_category": "Need Improvements",
+      "confidence": 0.9,
+      "explanation": "The feedback indicates several areas needing improvement, specifically that the employee did not listen carefully to concerns and did not efficiently resolve the issue, despite some positive aspects like clear explanations and excellent customer handling. The 'No' recommendation also supports this classification. This aligns with Reference Example 1, which also has low ratings for listening and issue resolution, and a 'No' recommendation.",
+      "flagged_keywords": [
+        "listened carefully to your concerns 1",
+        "resolved your issue efficiently 1",
+        "No"
+      ],
+      "retrieved_feedback_ids": [
+        "FB-d8daa1ec4717",
+        "FB-24a0b11f42e4",
+        "FB-1ef96540b2b3",
+        "FB-ff6b54c80cec"
+      ],
+      "retrieved_categories": [
+        "Need Improvements",
+        "Need Improvements",
+        "Good",
+        "Poor"
+      ],
+      "gold_category_retrieved": true,
+      "retrieved_only_reference": true,
+      "correct": true,
+      "status": "success",
+      "error": null
+    },
+    {
+      "feedback_id": "FB-24a0b11f42e4",
+      "relative_path": "Sample_Data/customer_feedback_forms/Customer_Feedback_077.pdf",
+      "gold_category": "Need Improvements",
+      "predicted_category": "Need Improvements",
+      "confidence": 0.9,
+      "explanation": "The feedback indicates several areas needing improvement, specifically with the employee listening carefully, explaining services clearly, and resolving issues efficiently, despite a positive comment about customer handling and overall satisfaction. The 'No' recommendation also supports that there are meaningful deficiencies.",
+      "flagged_keywords": [
+        "Employee listened carefully to your concerns 1",
+        "Employee explained banking services clearly 2",
+        "Employee resolved your issue efficiently 1",
+        "Excellent customer handling",
+        "Overall satisfaction with employee behavior 4",
+        "Recommendation: No"
+      ],
+      "retrieved_feedback_ids": [
+        "FB-24a0b11f42e4",
+        "FB-d8daa1ec4717",
+        "FB-05c05f327409",
+        "FB-a9477c0b977c"
+      ],
+      "retrieved_categories": [
+        "Need Improvements",
+        "Need Improvements",
+        "Good",
+        "Poor"
+      ],
+      "gold_category_retrieved": true,
+      "retrieved_only_reference": true,
+      "correct": true,
+      "status": "success",
+      "error": null
+    },
+    {
+      "feedback_id": "FB-0041da119252",
+      "relative_path": "Sample_Data/customer_feedback_forms/Customer_Feedback_082.pdf",
+      "gold_category": "Need Improvements",
+      "predicted_category": "Need Improvements",
+      "confidence": 1.0,
+      "explanation": "The feedback indicates several areas needing improvement, specifically in listening carefully, explaining services clearly, and resolving issues efficiently, despite some positive ratings. The explicit comment \"Need improvement in response time\" and the \"No\" recommendation further support this classification, aligning with the pattern of meaningful deficiencies that require attention.",
+      "flagged_keywords": [
+        "listened carefully to your concerns 2",
+        "explained banking services clearly 3",
+        "resolved your issue efficiently 2",
+        "Overall satisfaction with employee behavior 3",
+        "Need improvement in response time",
+        "Recommendation: No"
+      ],
+      "retrieved_feedback_ids": [
+        "FB-0041da119252",
+        "FB-32ab91ce3acd",
+        "FB-089f5cfbcd6b",
+        "FB-061c661e112d"
+      ],
+      "retrieved_categories": [
+        "Need Improvements",
+        "Poor",
+        "Need Improvements",
+        "Need Improvements"
+      ],
+      "gold_category_retrieved": true,
+      "retrieved_only_reference": true,
+      "correct": true,
+      "status": "success",
+      "error": null
+    },
+    {
+      "feedback_id": "FB-ac8a906d7b80",
+      "relative_path": "Sample_Data/customer_feedback_forms/Customer_Feedback_095.pdf",
+      "gold_category": "Poor",
+      "predicted_category": "Poor",
+      "confidence": 1.0,
+      "explanation": "The feedback indicates a substantially negative experience with low ratings for listening, professionalism, and overall satisfaction, along with a clear statement of 'Need improvement in response time' and a 'No' recommendation. This aligns with the 'Poor' category, as the negative aspects dominate the experience, similar to Reference Example 1.",
+      "flagged_keywords": [
+        "listened carefully to your concerns 1",
+        "behaved professionally 2",
+        "Overall satisfaction with employee behavior 1",
+        "Need improvement in response time",
+        "Recommendation: No"
+      ],
+      "retrieved_feedback_ids": [
+        "FB-ac8a906d7b80",
+        "FB-0841a5875968",
+        "FB-cce0a688e50c",
+        "FB-16600d07d823"
+      ],
+      "retrieved_categories": [
+        "Poor",
+        "Need Improvements",
+        "Need Improvements",
+        "Need Improvements"
+      ],
+      "gold_category_retrieved": true,
+      "retrieved_only_reference": true,
+      "correct": true,
+      "status": "success",
+      "error": null
+    },
+    {
+      "feedback_id": "FB-66333544fdea",
+      "relative_path": "Sample_Data/customer_feedback_forms/Customer_Feedback_096.pdf",
+      "gold_category": "Poor",
+      "predicted_category": "Poor",
+      "confidence": 0.9,
+      "explanation": "The feedback indicates a substantially negative experience with low ratings for politeness, listening, explanation, and professionalism. Despite a quick resolution, the overall satisfaction with employee behavior is low, and the customer would not recommend the bank, aligning with the 'Poor' category where strong dissatisfaction dominates.",
+      "flagged_keywords": [
+        "greeted you politely 1",
+        "listened carefully to your concerns 2",
+        "explained banking services clearly 1",
+        "behaved professionally 1",
+        "Overall satisfaction with employee behavior 2",
+        "Recommendation: No"
+      ],
+      "retrieved_feedback_ids": [
+        "FB-66333544fdea",
+        "FB-0a90f54ead46",
+        "FB-9bb7e6f8ed68",
+        "FB-763f01b84c68"
+      ],
+      "retrieved_categories": [
+        "Poor",
+        "Poor",
+        "Need Improvements",
+        "Poor"
+      ],
+      "gold_category_retrieved": true,
+      "retrieved_only_reference": true,
+      "correct": true,
+      "status": "success",
+      "error": null
+    },
+    {
+      "feedback_id": "FB-9979a2c5b251",
+      "relative_path": "Sample_Data/customer_feedback_forms/Customer_Feedback_099.pdf",
+      "gold_category": "Need Improvements",
+      "predicted_category": "Need Improvements",
+      "confidence": 0.9,
+      "explanation": "The feedback indicates a significant deficiency in issue resolution (rating 1) and a 'No' recommendation, despite some positive aspects like polite greeting and 'Excellent customer handling'. This pattern aligns with 'Need Improvements' where meaningful deficiencies exist but the overall experience is not dominated by severe dissatisfaction.",
+      "flagged_keywords": [
+        "resolved your issue efficiently 1",
+        "Excellent customer handling",
+        "Recommendation: No"
+      ],
+      "retrieved_feedback_ids": [
+        "FB-9979a2c5b251",
+        "FB-ff4b09bacca4",
+        "FB-3cc0190047cf",
+        "FB-1aeb872eb96c"
+      ],
+      "retrieved_categories": [
+        "Need Improvements",
+        "Poor",
+        "Poor",
+        "Excellent"
+      ],
+      "gold_category_retrieved": true,
+      "retrieved_only_reference": true,
+      "correct": true,
+      "status": "success",
+      "error": null
+    }
+  ]
+}

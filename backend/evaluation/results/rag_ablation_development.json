@@ -1,0 +1,190 @@
+{
+  "evaluation_timestamp": "2026-09-19T12:01:14",
+  "evaluation_split": "development",
+  "experiment": "RAG vs No-RAG Ablation",
+  "manifest_path": "C:\\Users\\User\\AppData\\Local\\Temp\\pytest-of-User\\pytest-55\\test_report_can_be_saved0\\dataset_manifest.csv",
+  "source_rag_report": "C:\\Users\\User\\AppData\\Local\\Temp\\pytest-of-User\\pytest-55\\test_report_can_be_saved0\\rag_evaluation_development_20260919_000000.json",
+  "total_evaluation_records": 2,
+  "paired_evaluation_cases": 2,
+  "no_rag_failed_cases": 0,
+  "evaluation_cases": 2,
+  "rag_metrics": {
+    "total_cases": 2,
+    "correct_cases": 1,
+    "accuracy": 0.5,
+    "macro_precision": 0.25,
+    "macro_recall": 0.25,
+    "macro_f1": 0.25,
+    "weighted_f1": 0.5,
+    "per_class": {
+      "Excellent": {
+        "support": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0
+      },
+      "Good": {
+        "support": 1,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0
+      },
+      "Need Improvements": {
+        "support": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0
+      },
+      "Poor": {
+        "support": 1,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0
+      }
+    },
+    "confusion_matrix": {
+      "Excellent": {
+        "Excellent": 0,
+        "Good": 0,
+        "Need Improvements": 0,
+        "Poor": 0
+      },
+      "Good": {
+        "Excellent": 0,
+        "Good": 1,
+        "Need Improvements": 0,
+        "Poor": 0
+      },
+      "Need Improvements": {
+        "Excellent": 0,
+        "Good": 0,
+        "Need Improvements": 0,
+        "Poor": 0
+      },
+      "Poor": {
+        "Excellent": 0,
+        "Good": 0,
+        "Need Improvements": 1,
+        "Poor": 0
+      }
+    }
+  },
+  "no_rag_metrics": {
+    "total_cases": 2,
+    "correct_cases": 1,
+    "accuracy": 0.5,
+    "macro_precision": 0.25,
+    "macro_recall": 0.25,
+    "macro_f1": 0.25,
+    "weighted_f1": 0.5,
+    "per_class": {
+      "Excellent": {
+        "support": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0
+      },
+      "Good": {
+        "support": 1,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0
+      },
+      "Need Improvements": {
+        "support": 0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0
+      },
+      "Poor": {
+        "support": 1,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0
+      }
+    },
+    "confusion_matrix": {
+      "Excellent": {
+        "Excellent": 0,
+        "Good": 0,
+        "Need Improvements": 0,
+        "Poor": 0
+      },
+      "Good": {
+        "Excellent": 0,
+        "Good": 0,
+        "Need Improvements": 1,
+        "Poor": 0
+      },
+      "Need Improvements": {
+        "Excellent": 0,
+        "Good": 0,
+        "Need Improvements": 0,
+        "Poor": 0
+      },
+      "Poor": {
+        "Excellent": 0,
+        "Good": 0,
+        "Need Improvements": 0,
+        "Poor": 1
+      }
+    }
+  },
+  "paired_comparison": {
+    "accuracy_difference": 0.0,
+    "macro_precision_difference": 0.0,
+    "macro_recall_difference": 0.0,
+    "macro_f1_difference": 0.0,
+    "weighted_f1_difference": 0.0,
+    "rag_better_cases": 1,
+    "no_rag_better_cases": 1,
+    "both_correct_cases": 0,
+    "both_wrong_cases": 0,
+    "no_rag_failed_cases": 0
+  },
+  "accuracy_difference": 0.0,
+  "macro_precision_difference": 0.0,
+  "macro_recall_difference": 0.0,
+  "macro_f1_difference": 0.0,
+  "weighted_f1_difference": 0.0,
+  "rag_better_cases": 1,
+  "no_rag_better_cases": 1,
+  "both_correct_cases": 0,
+  "both_wrong_cases": 0,
+  "results": [
+    {
+      "feedback_id": "FB001",
+      "relative_path": "development_001.pdf",
+      "gold_category": "Good",
+      "rag_prediction": "Good",
+      "rag_correct": true,
+      "rag_confidence": 0.9,
+      "no_rag_prediction": "Need Improvements",
+      "no_rag_correct": false,
+      "no_rag_confidence": 0.8,
+      "no_rag_explanation": "Baseline prediction.",
+      "no_rag_status": "success",
+      "no_rag_error": null,
+      "rag_better": true,
+      "no_rag_better": false,
+      "same_correctness": false
+    },
+    {
+      "feedback_id": "FB002",
+      "relative_path": "development_002.pdf",
+      "gold_category": "Poor",
+      "rag_prediction": "Need Improvements",
+      "rag_correct": false,
+      "rag_confidence": 0.9,
+      "no_rag_prediction": "Poor",
+      "no_rag_correct": true,
+      "no_rag_confidence": 0.91,
+      "no_rag_explanation": "Baseline prediction.",
+      "no_rag_status": "success",
+      "no_rag_error": null,
+      "rag_better": false,
+      "no_rag_better": true,
+      "same_correctness": false
+    }
+  ]
+}

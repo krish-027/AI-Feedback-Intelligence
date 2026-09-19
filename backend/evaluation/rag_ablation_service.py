@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import argparse
 import csv
 import json
-from collections import Counter
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,11 @@ CATEGORIES = [
     "Poor",
 ]
 
+VALID_SPLITS = {
+    "development",
+    "final_benchmark",
+}
+
 DEFAULT_MANIFEST_PATH = Path(
     "Sample_Data/evaluation/dataset_manifest.csv"
 )
@@ -32,35 +38,61 @@ DEFAULT_RESULTS_DIRECTORY = Path(
 
 
 class RAGAblationService:
-    """Compare the existing RAG results against a no-RAG baseline."""
+    """
+    Compare RAG classification results against a no-RAG baseline.
+
+    The RAG predictions come from an already-generated RAG evaluation
+    report. The no-RAG baseline classifies the exact same successfully
+    evaluated cases using the same classification policy but without
+    retrieved reference examples.
+    """
 
     def __init__(
         self,
         manifest_path: str | Path = DEFAULT_MANIFEST_PATH,
+        split: str = "development",
         rag_report_path: str | Path | None = None,
         output_directory: str | Path = DEFAULT_RESULTS_DIRECTORY,
         document_service: Any | None = None,
         gemini_service: GeminiService | None = None,
     ) -> None:
-        self.manifest_path = Path(manifest_path)
-        self.output_directory = Path(output_directory)
+        if split not in VALID_SPLITS:
+            raise ValueError(
+                f"Unsupported evaluation split: {split}. "
+                f"Expected one of: {sorted(VALID_SPLITS)}"
+            )
+
+        self.split = split
+
+        self.manifest_path = self._resolve_path(
+            manifest_path
+        )
+
+        self.output_directory = self._resolve_path(
+            output_directory
+        )
 
         if not self.manifest_path.exists():
             raise FileNotFoundError(
-                f"Dataset manifest not found: {self.manifest_path}"
+                "Dataset manifest not found: "
+                f"{self.manifest_path}"
             )
 
-        self.rag_report_path = (
-            Path(rag_report_path)
-            if rag_report_path is not None
-            else self.find_latest_rag_report(
-                self.output_directory
+        if rag_report_path is not None:
+            self.rag_report_path = self._resolve_path(
+                rag_report_path
             )
-        )
+        else:
+            self.rag_report_path = (
+                self.find_latest_rag_report(
+                    self.output_directory,
+                    split=self.split,
+                )
+            )
 
         if not self.rag_report_path.exists():
             raise FileNotFoundError(
-                f"RAG evaluation report not found: "
+                "RAG evaluation report not found: "
                 f"{self.rag_report_path}"
             )
 
@@ -77,56 +109,135 @@ class RAGAblationService:
         )
 
     @staticmethod
-    def find_latest_rag_report(
-        results_directory: str | Path,
+    def _resolve_path(
+        path: str | Path,
     ) -> Path:
-        """Return the most recently generated Stage 11 RAG report."""
+        """
+        Resolve a project-relative path.
 
-        directory = Path(results_directory)
+        Absolute paths are returned unchanged. Relative paths are first
+        checked from the current working directory and then from the
+        project root.
+        """
+
+        candidate = Path(path)
+
+        if candidate.is_absolute():
+            return candidate
+
+        if candidate.exists():
+            return candidate
+
+        project_root = (
+            Path(__file__)
+            .resolve()
+            .parents[2]
+        )
+
+        project_candidate = (
+            project_root / candidate
+        )
+
+        return project_candidate
+
+    @classmethod
+    def find_latest_rag_report(
+        cls,
+        results_directory: str | Path,
+        split: str,
+    ) -> Path:
+        """
+        Find the latest timestamped RAG evaluation report for a split.
+        """
+
+        if split not in VALID_SPLITS:
+            raise ValueError(
+                f"Unsupported evaluation split: {split}. "
+                f"Expected one of: {sorted(VALID_SPLITS)}"
+            )
+
+        directory = cls._resolve_path(
+            results_directory
+        )
+
+        pattern = (
+            f"rag_evaluation_{split}_*.json"
+        )
 
         reports = sorted(
-            directory.glob("rag_evaluation_*.json"),
+            directory.glob(pattern),
             key=lambda path: path.stat().st_mtime,
             reverse=True,
         )
 
         if not reports:
             raise FileNotFoundError(
-                f"No Stage 11 RAG evaluation reports found in "
-                f"{directory}"
+                "No RAG evaluation reports found for "
+                f"split '{split}' in {directory}"
             )
 
         return reports[0]
 
-    def _load_manifest(self) -> list[dict[str, str]]:
-        """Load the dataset manifest."""
+    def _load_manifest(
+        self,
+    ) -> list[dict[str, str]]:
+        """
+        Load the complete dataset manifest.
+        """
 
         with self.manifest_path.open(
             "r",
             encoding="utf-8",
             newline="",
         ) as file:
-            return list(csv.DictReader(file))
+            return list(
+                csv.DictReader(file)
+            )
+
+    def _load_split_manifest(
+        self,
+    ) -> dict[str, dict[str, str]]:
+        """
+        Load records belonging to the configured evaluation split.
+        """
+
+        rows = self._load_manifest()
+
+        split_rows: dict[
+            str,
+            dict[str, str],
+        ] = {}
+
+        for row in rows:
+            feedback_id = row.get(
+                "feedback_id"
+            )
+            row_split = row.get("split")
+
+            if (
+                feedback_id
+                and row_split == self.split
+            ):
+                split_rows[feedback_id] = row
+
+        return split_rows
 
     def _load_evaluation_manifest(
         self,
     ) -> dict[str, dict[str, str]]:
         """
-        Load only evaluation-split records keyed by feedback_id.
+        Backward-compatible alias for loading the configured
+        evaluation split.
         """
 
-        rows = self._load_manifest()
+        return self._load_split_manifest()
 
-        evaluation_rows = {
-            row["feedback_id"]: row
-            for row in rows
-            if row.get("split") == "evaluation"
-        }
-
-        return evaluation_rows
-
-    def _load_rag_report(self) -> dict[str, Any]:
-        """Load the Stage 11 RAG evaluation report."""
+    def _load_rag_report(
+        self,
+    ) -> dict[str, Any]:
+        """
+        Load and validate the RAG evaluation report.
+        """
 
         with self.rag_report_path.open(
             "r",
@@ -136,7 +247,22 @@ class RAGAblationService:
 
         if not isinstance(report, dict):
             raise ValueError(
-                "RAG evaluation report must contain a JSON object."
+                "RAG evaluation report must contain "
+                "a JSON object."
+            )
+
+        report_split = report.get(
+            "evaluation_split"
+        )
+
+        if (
+            report_split is not None
+            and report_split != self.split
+        ):
+            raise ValueError(
+                "RAG evaluation report split does not "
+                f"match requested split '{self.split}'. "
+                f"Report split: '{report_split}'."
             )
 
         return report
@@ -145,10 +271,15 @@ class RAGAblationService:
         self,
     ) -> list[dict[str, Any]]:
         """
-        Extract successful RAG evaluation cases from Stage 11.
+        Extract successfully classified RAG cases.
 
-        Evaluation cases without a predicted category are ignored because
-        they were not successfully classified.
+        Only cases with:
+        - feedback_id
+        - gold_category
+        - predicted_category
+        - status == success
+
+        are used for the paired ablation.
         """
 
         report = self._load_rag_report()
@@ -157,20 +288,32 @@ class RAGAblationService:
 
         if not isinstance(cases, list):
             raise ValueError(
-                "RAG evaluation report does not contain a 'cases' list."
+                "RAG evaluation report does not contain "
+                "a valid 'cases' list."
             )
 
-        successful_cases = [
-            case
-            for case in cases
-            if case.get("gold_category")
-            and case.get("predicted_category")
-        ]
+        successful_cases: list[
+            dict[str, Any]
+        ] = []
+
+        for case in cases:
+            if not isinstance(case, dict):
+                continue
+
+            if (
+                case.get("feedback_id")
+                and case.get("gold_category")
+                and case.get("predicted_category")
+                and case.get("status") == "success"
+            ):
+                successful_cases.append(
+                    case
+                )
 
         if not successful_cases:
             raise ValueError(
-                "The RAG evaluation report contains no successfully "
-                "classified cases."
+                "The RAG evaluation report contains "
+                "no successfully classified cases."
             )
 
         return successful_cases
@@ -180,14 +323,23 @@ class RAGAblationService:
         relative_path: str,
     ) -> str:
         """
-        Extract evaluation feedback text using the existing document service.
+        Extract feedback text using the existing document service.
         """
 
-        documents = self.document_service.load_pdf(
-            Path(relative_path)
+        pdf_path = self._resolve_feedback_path(
+            relative_path
         )
 
-        if isinstance(documents, list):
+        documents = (
+            self.document_service.load_pdf(
+                pdf_path
+            )
+        )
+
+        if isinstance(
+            documents,
+            list,
+        ):
             document_list = documents
         else:
             document_list = [documents]
@@ -202,33 +354,94 @@ class RAGAblationService:
             )
 
             if page_content:
-                text_parts.append(
-                    page_content.strip()
-                )
+                cleaned = str(
+                    page_content
+                ).strip()
+
+                if cleaned:
+                    text_parts.append(
+                        cleaned
+                    )
 
         feedback = "\n\n".join(
-            part
-            for part in text_parts
-            if part
-        )
+            text_parts
+        ).strip()
 
-        if not feedback.strip():
+        if not feedback:
             raise ValueError(
-                f"No usable feedback text extracted from "
-                f"{relative_path}"
+                "No usable feedback text extracted "
+                f"from {relative_path}"
             )
 
         return feedback
+
+    def _resolve_feedback_path(
+        self,
+        relative_path: str,
+    ) -> Path:
+        """
+        Resolve a manifest relative path to the actual PDF.
+
+        Several common project locations are checked so that the
+        evaluation service remains robust to the dataset layout.
+        """
+
+        raw_path = Path(relative_path)
+
+        if raw_path.is_absolute():
+            return raw_path
+
+        candidates = [
+            raw_path,
+            self.manifest_path.parent
+            / raw_path,
+            self.manifest_path.parent.parent
+            / raw_path,
+            self.manifest_path.parent.parent.parent
+            / raw_path,
+        ]
+
+        project_root = (
+            Path(__file__)
+            .resolve()
+            .parents[2]
+        )
+
+        candidates.extend(
+            [
+                project_root
+                / raw_path,
+                project_root
+                / "Sample_Data"
+                / raw_path,
+                project_root
+                / "Sample_Data"
+                / "feedback"
+                / raw_path,
+                project_root
+                / "Sample_Data"
+                / "evaluation"
+                / raw_path,
+            ]
+        )
+
+        for candidate in candidates:
+            if candidate.exists():
+                return candidate
+
+        # Let the document service raise the useful file-related
+        # error if the path really does not exist.
+        return (
+            project_root / raw_path
+        )
 
     def _classify_without_rag(
         self,
         feedback: str,
     ) -> FeedbackClassification:
         """
-        Classify feedback directly with Gemini without retrieved examples.
-
-        The same classification policy used by the RAG system is retained.
-        Only the historical reference examples are removed.
+        Classify feedback using the same classification policy as RAG,
+        but without retrieved examples.
         """
 
         user_prompt = f"""
@@ -246,8 +459,10 @@ Return:
 
 The explanation must be concise and evidence-based.
 
-Do not use any external information.
+Do not use external information.
 Do not invent facts that are not present in the feedback.
+Do not assume a particular industry unless the feedback itself provides
+that context.
 """
 
         return self.gemini_service.classify(
@@ -260,7 +475,9 @@ Do not invent facts that are not present in the feedback.
         numerator: float,
         denominator: float,
     ) -> float:
-        """Safely divide two values."""
+        """
+        Safely divide two numbers.
+        """
 
         if denominator == 0:
             return 0.0
@@ -274,13 +491,16 @@ Do not invent facts that are not present in the feedback.
         predicted_labels: list[str],
     ) -> dict[str, Any]:
         """
-        Calculate accuracy, macro F1, weighted F1 and per-class metrics
-        without requiring scikit-learn.
+        Calculate classification metrics without requiring an external
+        metric library.
         """
 
-        if len(gold_labels) != len(predicted_labels):
+        if len(gold_labels) != len(
+            predicted_labels
+        ):
             raise ValueError(
-                "Gold and predicted label lists must have equal length."
+                "Gold and predicted label lists "
+                "must have equal length."
             )
 
         total = len(gold_labels)
@@ -294,7 +514,30 @@ Do not invent facts that are not present in the feedback.
             if gold == predicted
         )
 
-        per_class: dict[str, dict[str, float]] = {}
+        per_class: dict[
+            str,
+            dict[str, float],
+        ] = {}
+
+        confusion_matrix = {
+            actual: {
+                predicted: 0
+                for predicted in CATEGORIES
+            }
+            for actual in CATEGORIES
+        }
+
+        for gold, predicted in zip(
+            gold_labels,
+            predicted_labels,
+        ):
+            if (
+                gold in CATEGORIES
+                and predicted in CATEGORIES
+            ):
+                confusion_matrix[
+                    gold
+                ][predicted] += 1
 
         for category in CATEGORIES:
             true_positive = 0
@@ -329,18 +572,22 @@ Do not invent facts that are not present in the feedback.
 
             precision = cls._safe_divide(
                 true_positive,
-                true_positive + false_positive,
+                true_positive
+                + false_positive,
             )
 
             recall = cls._safe_divide(
                 true_positive,
-                true_positive + false_negative,
+                true_positive
+                + false_negative,
             )
 
             f1 = (
-                2 * precision * recall
+                2
+                * precision
+                * recall
                 / (precision + recall)
-                if (precision + recall) > 0
+                if precision + recall > 0
                 else 0.0
             )
 
@@ -350,6 +597,22 @@ Do not invent facts that are not present in the feedback.
                 "recall": recall,
                 "f1": f1,
             }
+
+        macro_precision = (
+            sum(
+                metrics["precision"]
+                for metrics in per_class.values()
+            )
+            / len(CATEGORIES)
+        )
+
+        macro_recall = (
+            sum(
+                metrics["recall"]
+                for metrics in per_class.values()
+            )
+            / len(CATEGORIES)
+        )
 
         macro_f1 = (
             sum(
@@ -361,7 +624,8 @@ Do not invent facts that are not present in the feedback.
 
         weighted_f1 = cls._safe_divide(
             sum(
-                metrics["f1"] * metrics["support"]
+                metrics["f1"]
+                * metrics["support"]
                 for metrics in per_class.values()
             ),
             total,
@@ -374,46 +638,117 @@ Do not invent facts that are not present in the feedback.
                 correct,
                 total,
             ),
+            "macro_precision": macro_precision,
+            "macro_recall": macro_recall,
             "macro_f1": macro_f1,
             "weighted_f1": weighted_f1,
             "per_class": per_class,
+            "confusion_matrix": confusion_matrix,
         }
 
-    def evaluate(self) -> dict[str, Any]:
+    @staticmethod
+    def _build_paired_comparison(
+        *,
+        rag_metrics: dict[str, Any],
+        no_rag_metrics: dict[str, Any],
+        rag_better_cases: int,
+        no_rag_better_cases: int,
+        both_correct_cases: int,
+        both_wrong_cases: int,
+        no_rag_failed_cases: int,
+    ) -> dict[str, Any]:
         """
-        Run the no-RAG baseline on exactly the same successful cases used
-        by the Stage 11 RAG evaluation.
+        Build the API-facing paired comparison section.
         """
 
-        evaluation_manifest = (
-            self._load_evaluation_manifest()
+        return {
+            "accuracy_difference": (
+                rag_metrics["accuracy"]
+                - no_rag_metrics["accuracy"]
+            ),
+            "macro_precision_difference": (
+                rag_metrics["macro_precision"]
+                - no_rag_metrics[
+                    "macro_precision"
+                ]
+            ),
+            "macro_recall_difference": (
+                rag_metrics["macro_recall"]
+                - no_rag_metrics[
+                    "macro_recall"
+                ]
+            ),
+            "macro_f1_difference": (
+                rag_metrics["macro_f1"]
+                - no_rag_metrics["macro_f1"]
+            ),
+            "weighted_f1_difference": (
+                rag_metrics["weighted_f1"]
+                - no_rag_metrics["weighted_f1"]
+            ),
+            "rag_better_cases": (
+                rag_better_cases
+            ),
+            "no_rag_better_cases": (
+                no_rag_better_cases
+            ),
+            "both_correct_cases": (
+                both_correct_cases
+            ),
+            "both_wrong_cases": (
+                both_wrong_cases
+            ),
+            "no_rag_failed_cases": (
+                no_rag_failed_cases
+            ),
+        }
+
+    def evaluate(
+        self,
+    ) -> dict[str, Any]:
+        """
+        Run the no-RAG baseline against the successfully classified
+        RAG cases for the configured split.
+        """
+
+        split_manifest = (
+            self._load_split_manifest()
         )
 
         rag_cases = (
             self._load_successful_rag_cases()
         )
 
-        results: list[dict[str, Any]] = []
+        results: list[
+            dict[str, Any]
+        ] = []
+
+        no_rag_failed_cases = 0
+
+        total_cases = len(rag_cases)
 
         for index, rag_case in enumerate(
             rag_cases,
             start=1,
         ):
-            feedback_id = rag_case["feedback_id"]
+            feedback_id = rag_case[
+                "feedback_id"
+            ]
 
-            manifest_row = evaluation_manifest.get(
+            manifest_row = split_manifest.get(
                 feedback_id
             )
 
             if manifest_row is None:
                 raise ValueError(
-                    f"Feedback ID {feedback_id} from the RAG report "
-                    f"is not present in the evaluation manifest."
+                    f"Feedback ID {feedback_id} from "
+                    f"the RAG report is not present "
+                    f"in the {self.split} manifest."
                 )
 
-            relative_path = manifest_row[
-                "relative_path"
-            ]
+            relative_path = (
+                manifest_row["relative_path"]
+            )
 
             gold_category = rag_case[
                 "gold_category"
@@ -424,19 +759,52 @@ Do not invent facts that are not present in the feedback.
             ]
 
             print(
-                f"[{index}/{len(rag_cases)}] "
+                f"[{index}/{total_cases}] "
                 f"{feedback_id}"
             )
 
-            feedback = self._load_feedback_text(
-                relative_path
-            )
-
-            no_rag_classification = (
-                self._classify_without_rag(
-                    feedback
+            feedback = (
+                self._load_feedback_text(
+                    relative_path
                 )
             )
+
+            try:
+                no_rag_classification = (
+                    self._classify_without_rag(
+                        feedback
+                    )
+                )
+            except Exception as exc:
+                no_rag_failed_cases += 1
+
+                results.append(
+                    {
+                        "feedback_id": feedback_id,
+                        "relative_path": relative_path,
+                        "gold_category": gold_category,
+                        "rag_prediction": (
+                            rag_prediction
+                        ),
+                        "rag_correct": (
+                            rag_prediction
+                            == gold_category
+                        ),
+                        "rag_confidence": (
+                            rag_case.get(
+                                "confidence"
+                            )
+                        ),
+                        "no_rag_prediction": None,
+                        "no_rag_correct": None,
+                        "no_rag_confidence": None,
+                        "no_rag_explanation": None,
+                        "no_rag_status": "error",
+                        "no_rag_error": str(exc),
+                    }
+                )
+
+                continue
 
             no_rag_prediction = (
                 no_rag_classification.category
@@ -457,21 +825,29 @@ Do not invent facts that are not present in the feedback.
                     "feedback_id": feedback_id,
                     "relative_path": relative_path,
                     "gold_category": gold_category,
-                    "rag_prediction": rag_prediction,
+                    "rag_prediction": (
+                        rag_prediction
+                    ),
                     "rag_correct": rag_correct,
-                    "rag_confidence": rag_case.get(
-                        "confidence"
+                    "rag_confidence": (
+                        rag_case.get(
+                            "confidence"
+                        )
                     ),
                     "no_rag_prediction": (
                         no_rag_prediction
                     ),
-                    "no_rag_correct": no_rag_correct,
+                    "no_rag_correct": (
+                        no_rag_correct
+                    ),
                     "no_rag_confidence": (
                         no_rag_classification.confidence
                     ),
                     "no_rag_explanation": (
                         no_rag_classification.explanation
                     ),
+                    "no_rag_status": "success",
+                    "no_rag_error": None,
                     "rag_better": (
                         rag_correct
                         and not no_rag_correct
@@ -487,79 +863,163 @@ Do not invent facts that are not present in the feedback.
                 }
             )
 
+        successful_pairs = [
+            result
+            for result in results
+            if result["no_rag_status"]
+            == "success"
+        ]
+
+        if not successful_pairs:
+            raise ValueError(
+                "No successful RAG vs No-RAG "
+                "comparisons were produced."
+            )
+
         gold_labels = [
             result["gold_category"]
-            for result in results
+            for result in successful_pairs
         ]
 
         rag_predictions = [
             result["rag_prediction"]
-            for result in results
+            for result in successful_pairs
         ]
 
         no_rag_predictions = [
             result["no_rag_prediction"]
-            for result in results
+            for result in successful_pairs
         ]
 
-        rag_metrics = self._classification_metrics(
-            gold_labels,
-            rag_predictions,
+        rag_metrics = (
+            self._classification_metrics(
+                gold_labels,
+                rag_predictions,
+            )
         )
 
-        no_rag_metrics = self._classification_metrics(
-            gold_labels,
-            no_rag_predictions,
+        no_rag_metrics = (
+            self._classification_metrics(
+                gold_labels,
+                no_rag_predictions,
+            )
         )
 
         rag_better_cases = sum(
             1
-            for result in results
-            if result["rag_better"]
+            for result in successful_pairs
+            if result["rag_correct"]
+            and not result["no_rag_correct"]
         )
 
         no_rag_better_cases = sum(
             1
-            for result in results
-            if result["no_rag_better"]
+            for result in successful_pairs
+            if result["no_rag_correct"]
+            and not result["rag_correct"]
         )
 
         both_correct_cases = sum(
             1
-            for result in results
+            for result in successful_pairs
             if result["rag_correct"]
             and result["no_rag_correct"]
         )
 
         both_wrong_cases = sum(
             1
-            for result in results
+            for result in successful_pairs
             if not result["rag_correct"]
             and not result["no_rag_correct"]
         )
 
+        paired_comparison = (
+            self._build_paired_comparison(
+                rag_metrics=rag_metrics,
+                no_rag_metrics=no_rag_metrics,
+                rag_better_cases=(
+                    rag_better_cases
+                ),
+                no_rag_better_cases=(
+                    no_rag_better_cases
+                ),
+                both_correct_cases=(
+                    both_correct_cases
+                ),
+                both_wrong_cases=(
+                    both_wrong_cases
+                ),
+                no_rag_failed_cases=(
+                    no_rag_failed_cases
+                ),
+            )
+        )
+
         report = {
-            "stage": "12.2",
-            "experiment": "RAG vs No-RAG Ablation",
+            "evaluation_timestamp": (
+                datetime.now().isoformat(
+                    timespec="seconds"
+                )
+            ),
+            "evaluation_split": self.split,
+            "experiment": (
+                "RAG vs No-RAG Ablation"
+            ),
+            "manifest_path": str(
+                self.manifest_path
+            ),
             "source_rag_report": str(
                 self.rag_report_path
             ),
-            "evaluation_cases": len(results),
+            "total_evaluation_records": (
+                len(rag_cases)
+            ),
+            "paired_evaluation_cases": (
+                len(successful_pairs)
+            ),
+            "no_rag_failed_cases": (
+                no_rag_failed_cases
+            ),
+            "evaluation_cases": (
+                len(successful_pairs)
+            ),
             "rag_metrics": rag_metrics,
             "no_rag_metrics": no_rag_metrics,
+            "paired_comparison": (
+                paired_comparison
+            ),
+
+            # Backward-compatible top-level
+            # values used by existing tests
+            # and reports.
             "accuracy_difference": (
-                rag_metrics["accuracy"]
-                - no_rag_metrics["accuracy"]
+                paired_comparison[
+                    "accuracy_difference"
+                ]
+            ),
+            "macro_precision_difference": (
+                paired_comparison[
+                    "macro_precision_difference"
+                ]
+            ),
+            "macro_recall_difference": (
+                paired_comparison[
+                    "macro_recall_difference"
+                ]
             ),
             "macro_f1_difference": (
-                rag_metrics["macro_f1"]
-                - no_rag_metrics["macro_f1"]
+                paired_comparison[
+                    "macro_f1_difference"
+                ]
             ),
             "weighted_f1_difference": (
-                rag_metrics["weighted_f1"]
-                - no_rag_metrics["weighted_f1"]
+                paired_comparison[
+                    "weighted_f1_difference"
+                ]
             ),
-            "rag_better_cases": rag_better_cases,
+            "rag_better_cases": (
+                rag_better_cases
+            ),
             "no_rag_better_cases": (
                 no_rag_better_cases
             ),
@@ -569,7 +1029,8 @@ Do not invent facts that are not present in the feedback.
             "both_wrong_cases": (
                 both_wrong_cases
             ),
-            "results": results,
+
+            "results": successful_pairs,
         }
 
         return report
@@ -578,7 +1039,9 @@ Do not invent facts that are not present in the feedback.
         self,
         report: dict[str, Any],
     ) -> Path:
-        """Save the Stage 12.2 JSON report."""
+        """
+        Save the ablation report as JSON.
+        """
 
         self.output_directory.mkdir(
             parents=True,
@@ -587,7 +1050,10 @@ Do not invent facts that are not present in the feedback.
 
         output_path = (
             self.output_directory
-            / "stage12_rag_ablation.json"
+            / (
+                f"rag_ablation_"
+                f"{self.split}.json"
+            )
         )
 
         with output_path.open(
@@ -598,42 +1064,18 @@ Do not invent facts that are not present in the feedback.
                 report,
                 file,
                 indent=2,
+                ensure_ascii=False,
             )
 
         return output_path
-
-    @staticmethod
-    def _prediction_confusion(
-        results: list[dict[str, Any]],
-        prediction_key: str,
-    ) -> dict[str, dict[str, int]]:
-        """Create a confusion matrix for a prediction column."""
-
-        matrix = {
-            actual: {
-                predicted: 0
-                for predicted in CATEGORIES
-            }
-            for actual in CATEGORIES
-        }
-
-        for result in results:
-            actual = result["gold_category"]
-            predicted = result[prediction_key]
-
-            if (
-                actual in CATEGORIES
-                and predicted in CATEGORIES
-            ):
-                matrix[actual][predicted] += 1
-
-        return matrix
 
     def save_csv(
         self,
         report: dict[str, Any],
     ) -> Path:
-        """Save case-level Stage 12.2 results as CSV."""
+        """
+        Save case-level ablation results as CSV.
+        """
 
         self.output_directory.mkdir(
             parents=True,
@@ -642,7 +1084,10 @@ Do not invent facts that are not present in the feedback.
 
         output_path = (
             self.output_directory
-            / "stage12_rag_ablation.csv"
+            / (
+                f"rag_ablation_"
+                f"{self.split}.csv"
+            )
         )
 
         fieldnames = [
@@ -656,6 +1101,8 @@ Do not invent facts that are not present in the feedback.
             "no_rag_correct",
             "no_rag_confidence",
             "no_rag_explanation",
+            "no_rag_status",
+            "no_rag_error",
             "rag_better",
             "no_rag_better",
             "same_correctness",
@@ -669,22 +1116,31 @@ Do not invent facts that are not present in the feedback.
             writer = csv.DictWriter(
                 file,
                 fieldnames=fieldnames,
+                extrasaction="ignore",
             )
 
             writer.writeheader()
 
-            for result in report["results"]:
+            for result in report[
+                "results"
+            ]:
                 writer.writerow(
                     {
-                        field: result.get(field)
+                        field: result.get(
+                            field
+                        )
                         for field in fieldnames
                     }
                 )
 
         return output_path
 
-    def run_and_save(self) -> dict[str, Any]:
-        """Run the ablation and save JSON and CSV reports."""
+    def run_and_save(
+        self,
+    ) -> dict[str, Any]:
+        """
+        Run the ablation and save JSON and CSV reports.
+        """
 
         report = self.evaluate()
 
@@ -696,80 +1152,227 @@ Do not invent facts that are not present in the feedback.
             report
         )
 
-        print("\n" + "=" * 60)
-        print("STAGE 12.2 - RAG VS NO-RAG")
-        print("=" * 60)
+        paired_cases = report[
+            "paired_evaluation_cases"
+        ]
+
+        successful_comparisons = report[
+            "paired_evaluation_cases"
+        ]
 
         print(
-            f"Evaluation cases : "
-            f"{report['evaluation_cases']}"
+            "\n"
+            + "=" * 60
+        )
+        print(
+            "RAG VS NO-RAG EVALUATION"
+        )
+        print(
+            "=" * 60
         )
 
         print(
-            f"RAG accuracy     : "
+            f"Evaluation split       : "
+            f"{report['evaluation_split']}"
+        )
+
+        print(
+            f"Paired evaluation cases: "
+            f"{paired_cases}"
+        )
+
+        print(
+            f"Successful comparisons : "
+            f"{successful_comparisons}"
+        )
+
+        print(
+            f"No-RAG failed cases    : "
+            f"{report['no_rag_failed_cases']}"
+        )
+
+        print()
+
+        print(
+            f"RAG accuracy           : "
             f"{report['rag_metrics']['accuracy']:.4f}"
         )
 
         print(
-            f"No-RAG accuracy  : "
+            f"No-RAG accuracy        : "
             f"{report['no_rag_metrics']['accuracy']:.4f}"
         )
 
         print(
-            f"Accuracy delta   : "
+            f"Accuracy delta         : "
             f"{report['accuracy_difference']:+.4f}"
         )
 
         print(
-            f"RAG macro F1     : "
+            f"RAG macro precision    : "
+            f"{report['rag_metrics']['macro_precision']:.4f}"
+        )
+
+        print(
+            f"No-RAG macro precision : "
+            f"{report['no_rag_metrics']['macro_precision']:.4f}"
+        )
+
+        print(
+            f"Precision delta        : "
+            f"{report['macro_precision_difference']:+.4f}"
+        )
+
+        print(
+            f"RAG macro recall       : "
+            f"{report['rag_metrics']['macro_recall']:.4f}"
+        )
+
+        print(
+            f"No-RAG macro recall    : "
+            f"{report['no_rag_metrics']['macro_recall']:.4f}"
+        )
+
+        print(
+            f"Recall delta           : "
+            f"{report['macro_recall_difference']:+.4f}"
+        )
+
+        print(
+            f"RAG macro F1           : "
             f"{report['rag_metrics']['macro_f1']:.4f}"
         )
 
         print(
-            f"No-RAG macro F1  : "
+            f"No-RAG macro F1        : "
             f"{report['no_rag_metrics']['macro_f1']:.4f}"
         )
 
         print(
-            f"Macro F1 delta   : "
+            f"Macro F1 delta         : "
             f"{report['macro_f1_difference']:+.4f}"
         )
 
         print(
-            f"RAG better cases : "
+            f"RAG weighted F1        : "
+            f"{report['rag_metrics']['weighted_f1']:.4f}"
+        )
+
+        print(
+            f"No-RAG weighted F1     : "
+            f"{report['no_rag_metrics']['weighted_f1']:.4f}"
+        )
+
+        print(
+            f"Weighted F1 delta      : "
+            f"{report['weighted_f1_difference']:+.4f}"
+        )
+
+        print()
+
+        print(
+            f"RAG better cases       : "
             f"{report['rag_better_cases']}"
         )
 
         print(
-            f"No-RAG better    : "
+            f"No-RAG better cases    : "
             f"{report['no_rag_better_cases']}"
         )
 
         print(
-            f"Both correct     : "
+            f"Both correct            : "
             f"{report['both_correct_cases']}"
         )
 
         print(
-            f"Both wrong       : "
+            f"Both wrong              : "
             f"{report['both_wrong_cases']}"
         )
 
+        print()
+
         print(
-            f"\nJSON report      : {json_path}"
+            f"JSON report             : "
+            f"{json_path}"
         )
 
         print(
-            f"CSV report       : {csv_path}"
+            f"CSV report              : "
+            f"{csv_path}"
         )
 
         return report
 
 
-def main() -> None:
-    """Run the Stage 12.2 RAG ablation."""
+def parse_args() -> argparse.Namespace:
+    """
+    Parse command-line arguments.
+    """
 
-    service = RAGAblationService()
+    parser = argparse.ArgumentParser(
+        description=(
+            "Run a RAG vs No-RAG ablation "
+            "for customer feedback classification."
+        )
+    )
+
+    parser.add_argument(
+        "--split",
+        choices=sorted(VALID_SPLITS),
+        default="development",
+        help=(
+            "Evaluation split to use. "
+            "Default: development"
+        ),
+    )
+
+    parser.add_argument(
+        "--manifest-path",
+        type=Path,
+        default=DEFAULT_MANIFEST_PATH,
+        help=(
+            "Path to dataset_manifest.csv."
+        ),
+    )
+
+    parser.add_argument(
+        "--rag-report-path",
+        type=Path,
+        default=None,
+        help=(
+            "Optional explicit RAG evaluation "
+            "report path. If omitted, the latest "
+            "report for the selected split is used."
+        ),
+    )
+
+    parser.add_argument(
+        "--output-directory",
+        type=Path,
+        default=DEFAULT_RESULTS_DIRECTORY,
+        help=(
+            "Directory where JSON and CSV reports "
+            "will be saved."
+        ),
+    )
+
+    return parser.parse_args()
+
+
+def main() -> None:
+    """
+    Run the ablation from the command line.
+    """
+
+    args = parse_args()
+
+    service = RAGAblationService(
+        manifest_path=args.manifest_path,
+        split=args.split,
+        rag_report_path=args.rag_report_path,
+        output_directory=args.output_directory,
+    )
 
     service.run_and_save()
 
